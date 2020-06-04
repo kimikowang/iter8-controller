@@ -123,8 +123,8 @@ func (s *SlackWebhook) MakeRequest(instance *iter8v1alpha2.Experiment, reason st
 		Fields: []Field{
 			{
 				Title: "Traffic",
-				Value: "Baseline: " + strconv.Itoa(instance.Status.TrafficSplit.Baseline) +
-					"  Candidate: " + strconv.Itoa(instance.Status.TrafficSplit.Candidate),
+				Value: "Baseline: " + // strconv.Itoa(instance.Status.TrafficSplit.Baseline) +
+					"  Candidate: ", // + strconv.Itoa(instance.Status.TrafficSplit.Candidate),
 				Short: false,
 			},
 			{
@@ -134,7 +134,7 @@ func (s *SlackWebhook) MakeRequest(instance *iter8v1alpha2.Experiment, reason st
 			},
 			{
 				Title: "Analytics Assessment Summary",
-				Value: instance.Status.AssessmentSummary.Assessment2String(),
+				Value: "", //instance.Status.AssessmentSummary.Assessment2String(),
 				Short: false,
 			},
 		},
