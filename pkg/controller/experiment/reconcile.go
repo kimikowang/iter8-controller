@@ -169,7 +169,7 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 				r.markAnalyticsServiceError(context, instance, "%s", err.Error())
 				return err
 			}
-			instance.Status.AnalysisState = runtime.RawExtension{Raw: lastState}
+			instance.Status.AnalysisState = &runtime.RawExtension{Raw: lastState}
 		}
 
 		instance.Status.Assessment.Baseline.VersionAssessment = response.BaselineAssessment
