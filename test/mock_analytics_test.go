@@ -30,8 +30,7 @@ func TestMockAnalytics(t *testing.T) {
 	want := dummyResponse()
 	service.AddMock("test-0", want)
 
-	algorithm := analytics.GetAlgorithm("check_and_increment")
-	got, err := analytics.Invoke(logger, service.GetURL(), dummyRequest(), algorithm)
+	got, err := analytics.Invoke(logger, service.GetURL(), dummyRequest())
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
