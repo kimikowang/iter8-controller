@@ -10,8 +10,8 @@ source "$DIR/library.sh"
 
 header "Scenario 5"
 
-header "Create productpage-service gateway"
-kubectl apply -n bookinfo-iter8 -f $DIR/../../doc/tutorials/istio/bookinfo/service/bookinfo-gateway.yaml
+header "Create productpage-gateway gateway"
+kubectl apply -n bookinfo-iter8 -f $DIR/../../doc/tutorials/istio/bookinfo/productpage-gateway.yaml
 kubectl get gateway -n bookinfo-iter8
 
 header "Generate workload"
@@ -20,8 +20,8 @@ IP='127.0.0.1'
 PORT=`kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}'`
 # Following uses the K8s service IP/port to access bookinfo app
 echo "Bookinfo is accessed at $IP:$PORT"
-curl -H "Host: productpage.example.com" -Is "http://$IP:$PORT/productpage"
-watch -n 0.1 "curl -H \"Host: productpage.example.com\" -Is \"http://$IP:$PORT/productpage\"" >/dev/null 2>&1 &
+curl -H "Host: productpage.deployment.com" -Is "http://$IP:$PORT/productpage"
+watch -n 0.1 "curl -H \"Host: productpage.deployment.com\" -Is \"http://$IP:$PORT/productpage\"" >/dev/null 2>&1 &
 
 header "Create Iter8 Experiment"
 kubectl apply -n bookinfo-iter8 -f $DIR/../../doc/tutorials/istio/bookinfo/canary_productpage-v1_to_productpage-v2.yaml

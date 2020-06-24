@@ -9,8 +9,8 @@ spec:
     candidate: productpage-v2
     port: 9080
     hosts:
-      - name: productpage.example.com
-        gateway: productpage-service
+      - name: productpage.deployment.com
+        gateway: productpage-gateway
   trafficControl:
     strategy: check_and_increment
     interval: 30s
