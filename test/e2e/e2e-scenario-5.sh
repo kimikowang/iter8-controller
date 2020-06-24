@@ -10,6 +10,19 @@ source "$DIR/library.sh"
 
 header "Scenario 5"
 
+header "Create productpage-service gateway"
+kubectl apply -n bookinfo-iter8 -f $DIR/../../doc/tutorials/istio/bookinfo/service/bookinfo-gateway.yaml
+kubectl get gateway -n bookinfo-iter8
+
+header "Generate workload"
+# We are using nodeport of the Istio ingress gateway to access bookinfo app
+IP='127.0.0.1'
+PORT=`kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}'`
+# Following uses the K8s service IP/port to access bookinfo app
+echo "Bookinfo is accessed at $IP:$PORT"
+curl -H "Host: productpage.example.com" -Is "http://$IP:$PORT/productpage"
+watch -n 0.1 "curl -H \"Host: productpage.example.com\" -Is \"http://$IP:$PORT/productpage\"" >/dev/null 2>&1 &
+
 header "Create Iter8 Experiment"
 kubectl apply -n bookinfo-iter8 -f $DIR/../../doc/tutorials/istio/bookinfo/canary_productpage-v1_to_productpage-v2.yaml
 kubectl get experiments -n bookinfo-iter8
@@ -19,7 +32,7 @@ kubectl apply -n bookinfo-iter8 -f $DIR/../../doc/tutorials/istio/bookinfo/produ
 sleep 1
 kubectl wait --for=condition=ExperimentCompleted -n bookinfo-iter8 experiments.iter8.tools productpage-v2-rollout --timeout=600s
 kubectl get experiments -n bookinfo-iter8
-kubectl get vs bookinfo -n bookinfo-iter8 -o yaml
+kubectl get vs -n bookinfo-iter8 -o yaml
 
 header "Test results"
 kubectl -n bookinfo-iter8 get experiments.iter8.tools productpage-v2-rollout -o yaml

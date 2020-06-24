@@ -21,19 +21,6 @@ sleep 1
 kubectl wait --for=condition=Ready pods --all -n $NAMESPACE --timeout=600s
 kubectl get pods,services -n $NAMESPACE
 
-header "Create $NAMESPACE gateway"
-kubectl apply -n  $NAMESPACE -f $DIR/../../doc/tutorials/istio/bookinfo/service/bookinfo-gateway.yaml
-kubectl get gateway -n  $NAMESPACE
-
-header "Generate workload"
-# We are using nodeport of the Istio ingress gateway to access bookinfo app
-IP='127.0.0.1'
-PORT=`kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}'`
-# Following uses the K8s service IP/port to access bookinfo app
-echo "Bookinfo is accessed at $IP:$PORT"
-curl -H "Host: productpage.example.com" -Is "http://$IP:$PORT/productpage"
-watch -n 0.1 "curl -H \"Host: productpage.example.com\" -Is \"http://$IP:$PORT/productpage\"" >/dev/null 2>&1 &
-
 header "Create Iter8 Experiment"
 kubectl apply -n $NAMESPACE -f $DIR/../../doc/tutorials/istio/bookinfo/service/canary_productpage-v1_to_productpage-v2.yaml
 kubectl get experiments -n $NAMESPACE
