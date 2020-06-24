@@ -42,6 +42,3 @@ if [ "$conclusion" != "All success criteria were  met" ]; then
   exit 1
 fi
 echo "Experiment succeeded as expected!"
-
-header "Clean up"
-kubectl -n bookinfo-iter8 delete deployment productpage-v1
