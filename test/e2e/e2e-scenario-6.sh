@@ -8,7 +8,7 @@ NAMESPACE=bookinfo-service
 DIR="$( cd "$( dirname "$0" )" >/dev/null 2>&1; pwd -P )"
 source "$DIR/library.sh"
 
-header "Scenario 5"
+header "Scenario 6"
 
 header "Create $NAMESPACE namespace"
 kubectl create ns $NAMESPACE
