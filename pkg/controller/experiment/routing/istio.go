@@ -274,28 +274,35 @@ func (b *VirtualServiceBuilder) ExternalToProgressing(service, ns string, candid
 	return b
 }
 
-func (b *VirtualServiceBuilder) ToProgressing(service string, candidateCount int) *VirtualServiceBuilder {
+func (b *VirtualServiceBuilder) ToProgressing(host string, candidateCount int, port *int32) *VirtualServiceBuilder {
 	if b.Spec.Http == nil || len(b.Spec.Http) == 0 {
 		b.Spec.Http = append(b.Spec.Http, &networkingv1alpha3.HTTPRoute{})
 	}
 
 	b.Spec.Http[0].Route = make([]*networkingv1alpha3.HTTPRouteDestination, candidateCount+1)
-	b.Spec.Http[0].Route[0] = &networkingv1alpha3.HTTPRouteDestination{
+	rd := &networkingv1alpha3.HTTPRouteDestination{
 		Destination: &networkingv1alpha3.Destination{
-			Host:   service,
+			Host:   host,
 			Subset: SubsetBaseline,
 		},
 		Weight: 100,
 	}
+	if port != nil {
+		rd.Destination.Port = &networkingv1alpha3.PortSelector{
+			Number: uint32(*port),
+		}
+	}
+	b.Spec.Http[0].Route[0] = rd
 
 	for i := 0; i < candidateCount; i++ {
 		b.Spec.Http[0].Route[i+1] = &networkingv1alpha3.HTTPRouteDestination{
 			Destination: &networkingv1alpha3.Destination{
-				Host:   service,
-				Subset: candiateSubsetName(i),
+				Host: host,
 			},
 			Weight: 0,
 		}
+
+		b.Spec.Http[0].Route[i] = rd
 	}
 
 	return b
@@ -346,30 +353,29 @@ func (b *VirtualServiceBuilder) Build() *v1alpha3.VirtualService {
 	return (*v1alpha3.VirtualService)(b)
 }
 
-func getWeight(subset string, vs *v1alpha3.VirtualService) int32 {
-	for _, route := range vs.Spec.Http[0].Route {
-		if route.Destination.Subset == subset {
-			return route.Weight
+func (b *VirtualServiceBuilder) InitGateways() *VirtualServiceBuilder {
+	b.Spec.Gateways = []string{}
+	return b
 		}
+
+func (b *VirtualServiceBuilder) WithMeshGateway() *VirtualServiceBuilder {
+	b.Spec.Gateways = append(b.Spec.Gateways, "mesh")
+	return b
 	}
-	return 0
+
+func (b *VirtualServiceBuilder) InitHosts() *VirtualServiceBuilder {
+	b.Spec.Hosts = []string{}
+	return b
 }
 
-func removeExperimentLabel(objs ...runtime.Object) (err error) {
-	for _, obj := range objs {
-		accessor, err := meta.Accessor(obj)
-		if err != nil {
-			return err
-		}
-		labels := accessor.GetLabels()
-		delete(labels, ExperimentLabel)
-		if _, ok := labels[ExperimentInit]; ok {
-			delete(labels, ExperimentInit)
-		}
-		accessor.SetLabels(labels)
+func (b *VirtualServiceBuilder) WithGateways(gws []string) *VirtualServiceBuilder {
+	b.Spec.Gateways = append(b.Spec.Gateways, gws...)
+	return b
 	}
 
-	return nil
+func (b *VirtualServiceBuilder) WithHosts(hosts []string) *VirtualServiceBuilder {
+	b.Spec.Hosts = append(b.Spec.Hosts, hosts...)
+	return b
 }
 
 func convertMatchToIstio(m *iter8v1alpha2.HTTPMatchRequest) *networkingv1alpha3.HTTPMatchRequest {

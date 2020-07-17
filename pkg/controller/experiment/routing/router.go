@@ -135,16 +135,22 @@ func (r *Router) UpdateBaseline(instance *iter8v1alpha2.Experiment, targets *tar
 			WithInitLabel()
 	}
 	vsb = vsb.
-		WithExperimentRegistered(instance.Name)
+		WithExperimentRegistered(instance.Name).
+		ToProgressing(instance.Spec.Service.Name, len(targets.Candidates)).
+		InitGateways().
+		InitHosts()
 
-	if r.rules.isExternalReference() {
-		vsb = vsb.ExternalToProgressing(instance.Spec.Service.Name, instance.ServiceNamespace(), len(targets.Candidates))
-	} else {
-		vsb = vsb.ToProgressing(instance.Spec.Service.Name, len(targets.Candidates))
-		trafficControl := instance.Spec.TrafficControl
-		if trafficControl != nil && trafficControl.Match != nil && len(trafficControl.Match.HTTP) > 0 {
-			vsb = vsb.WithHTTPMatch(trafficControl.Match.HTTP)
-		}
+	if len(targets.Hosts) > 0 {
+		vsb = vsb.WithHosts(targets.Hosts)
+	}
+
+	if len(targets.Gateways) > 0 {
+		vsb = vsb.WithGateways(targets.Gateways)
+	}
+
+	trafficControl := instance.Spec.TrafficControl
+	if trafficControl != nil && trafficControl.Match != nil && len(trafficControl.Match.HTTP) > 0 {
+		vsb = vsb.WithHTTPMatch(trafficControl.Match.HTTP)
 	}
 
 	vs := (*v1alpha3.VirtualService)(nil)
