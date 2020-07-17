@@ -134,8 +134,28 @@ func (r *Router) UpdateBaseline(ctx context.Context, instance *iter8v1alpha2.Exp
 		vsb = NewVirtualService(instance.Spec.Service.Name, instance.GetName(), instance.ServiceNamespace()).
 			WithInitLabel()
 	}
-	vsb = vsb.WithExperimentRegistered(instance.Name).
-		ToProgressing(instance.Spec.Service.Name, len(targets.Candidates))
+
+	vsb = vsb.
+		WithExperimentRegistered(instance.Name).
+		ToProgressing(instance.Spec.Service.Name, len(targets.Candidates)).
+		InitGateways().
+		InitHosts()
+
+	if targets.Service != nil {
+		vsb = vsb.WithHosts([]string{instance.Spec.Service.Name}).WithMeshGateway()
+	}
+
+	if targets.Port != nil {
+		vsb = vsb.WithPort(uint32(*targets.Port))
+	}
+
+	if len(targets.Hosts) > 0 {
+		vsb = vsb.WithHosts(targets.Hosts)
+	}
+
+	if len(targets.Gateways) > 0 {
+		vsb = vsb.WithGateways(targets.Gateways)
+	}
 
 	trafficControl := instance.Spec.TrafficControl
 	if trafficControl != nil && trafficControl.Match != nil && len(trafficControl.Match.HTTP) > 0 {
@@ -164,10 +184,6 @@ func (r *Router) UpdateBaseline(ctx context.Context, instance *iter8v1alpha2.Exp
 	return
 }
 
-func candiateSubsetName(idx int) string {
-	return SubsetCandidate + "-" + strconv.Itoa(idx)
-}
-
 func (r *Router) UpdateCandidates(context context.Context, targets *targets.Targets) (err error) {
 	if r.rules.isProgressing() {
 		return nil
@@ -175,7 +191,7 @@ func (r *Router) UpdateCandidates(context context.Context, targets *targets.Targ
 
 	drb := NewDestinationRuleBuilder(r.rules.destinationRule)
 	for i, candidate := range targets.Candidates {
-		drb = drb.WithSubset(candidate, candiateSubsetName(i), i+1)
+		drb = drb.WithSubset(candidate, candidateSubsetName(i), i+1)
 	}
 	drb = drb.WithProgressingLabel()
 
@@ -222,7 +238,7 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 				// change winner version to stable
 				for i, candidate := range instance.Spec.Candidates {
 					if candidate == *assessment.Winner.Winner {
-						toStableSubset[candiateSubsetName(i)] = SubsetStable
+						toStableSubset[candidateSubsetName(i)] = SubsetStable
 						subsetWeight[SubsetStable] = 100
 						break
 					}
@@ -249,7 +265,7 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 				for i, candidate := range assessment.Candidates {
 					if candidate.Weight > 0 {
 						stableSubset := SubsetStable + "-" + strconv.Itoa(stableCnt)
-						toStableSubset[candiateSubsetName(i)] = stableSubset
+						toStableSubset[candidateSubsetName(i)] = stableSubset
 						subsetWeight[stableSubset] = candidate.Weight
 						stableCnt++
 					}
@@ -268,14 +284,17 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 			return
 		}
 
-		vs := NewVirtualServiceBuilder(r.rules.virtualService).
+		vsb := NewVirtualServiceBuilder(r.rules.virtualService).
 			ProgressingToStable(subsetWeight, instance.Spec.Service.Name, instance.ServiceNamespace()).
 			WithStableLabel().
-			RemoveExperimentLabel().
-			Build()
+			RemoveExperimentLabel()
+		if instance.Spec.Service.Port != nil {
+			vsb = vsb.WithPort(uint32(*instance.Spec.Service.Port))
+		}
+
 		if _, err = r.client.NetworkingV1alpha3().
 			VirtualServices(r.rules.virtualService.Namespace).
-			Update(vs); err != nil {
+			Update(vsb.Build()); err != nil {
 			return
 		}
 	}
@@ -302,11 +321,14 @@ func (r *Router) UpdateTrafficSplit(instance *iter8v1alpha2.Experiment) error {
 			WithWeight(instance.Status.Assessment.Candidates[i].Weight).Build())
 	}
 
-	vs := NewVirtualServiceBuilder(r.rules.virtualService).
-		WithHTTPRoute(rb.Build()).
-		Build()
+	vsb := NewVirtualServiceBuilder(r.rules.virtualService).
+		WithHTTPRoute(rb.Build())
 
-	if vs, err := r.client.NetworkingV1alpha3().VirtualServices(vs.Namespace).Update(vs); err != nil {
+	if instance.Spec.Service.Port != nil {
+		vsb = vsb.WithPort(uint32(*instance.Spec.Service.Port))
+	}
+
+	if vs, err := r.client.NetworkingV1alpha3().VirtualServices(vsb.Namespace).Update(vsb.Build()); err != nil {
 		return err
 	} else {
 		r.rules.virtualService = vs.DeepCopy()
