@@ -140,6 +140,14 @@ func (r *Router) UpdateBaseline(instance *iter8v1alpha2.Experiment, targets *tar
 		InitGateways().
 		InitHosts()
 
+	if targets.Service != nil {
+		vsb = vsb.WithHosts([]string{instance.Spec.Service.Name}).WithMeshGateway()
+	}
+
+	if targets.Port != nil {
+		vsb = vsb.WithPort(uint32(*targets.Port))
+	}
+
 	if len(targets.Hosts) > 0 {
 		vsb = vsb.WithHosts(targets.Hosts)
 	}
@@ -291,15 +299,28 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 }
 
 // UpdateTrafficSplit updates virtualservice with latest traffic split
+// UpdateTrafficSplit updates virtualservice with latest traffic split
 func (r *Router) UpdateTrafficSplit(instance *iter8v1alpha2.Experiment) error {
-	subset2Weight := make(map[string]int32)
-	subset2Weight[SubsetBaseline] = instance.Status.Assessment.Baseline.Weight
+	httproute := r.rules.virtualService.Spec.GetHttp()
+	if len(httproute) == 0 {
+		return fmt.Errorf("EmptyRouteInVs")
+	}
+	rb := NewHTTPRoute(httproute[0]).ClearRoute()
+
+	// baseline route
+	rb = rb.WithDestination(NewHTTPRouteDestination().
+		WithHost(util.GetHost(instance)).
+		WithSubset(SubsetBaseline).
+		WithWeight(instance.Status.Assessment.Baseline.Weight).Build())
 	for i := range instance.Spec.Candidates {
-		subset2Weight[SubsetCandidate+"-"+strconv.Itoa(i)] = instance.Status.Assessment.Candidates[i].Weight
+		rb = rb.WithDestination(NewHTTPRouteDestination().
+			WithHost(util.GetHost(instance)).
+			WithSubset(candidateSubsetName(i)).
+			WithWeight(instance.Status.Assessment.Candidates[i].Weight).Build())
 	}
 
 	vs := NewVirtualServiceBuilder(r.rules.virtualService).
-		WithTrafficSplit(instance.Spec.Service.Name, subset2Weight).
+		WithHTTPRoute(rb.Build()).
 		Build()
 
 	if vs, err := r.client.NetworkingV1alpha3().VirtualServices(vs.Namespace).Update(vs); err != nil {
@@ -502,4 +523,8 @@ func validateVirtualService(instance *iter8v1alpha2.Experiment, vs *v1alpha3.Vir
 		}
 	}
 	return nil
+}
+
+func candidateSubsetName(idx int) string {
+	return SubsetCandidate + "-" + strconv.Itoa(idx)
 }
