@@ -274,11 +274,6 @@ func (in *ExperimentSpec) DeepCopyInto(out *ExperimentSpec) {
 		*out = new(Duration)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.RoutingReference != nil {
-		in, out := &in.RoutingReference, &out.RoutingReference
-		*out = new(v1.ObjectReference)
-		**out = **in
-	}
 	if in.Cleanup != nil {
 		in, out := &in.Cleanup, &out.Cleanup
 		*out = new(bool)

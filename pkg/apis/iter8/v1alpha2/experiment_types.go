@@ -77,10 +77,6 @@ type ExperimentSpec struct {
 	// +optional
 	Duration *Duration `json:"duration,omitempty"`
 
-	// RoutingReference provides references to routing rules set by users
-	// +optional
-	RoutingReference *corev1.ObjectReference `json:"routingReference,omitempty"`
-
 	// Cleanup indicates whether routing rules and deployment receiving no traffic should be deleted at the end of experiment
 	// +optional
 	Cleanup *bool `json:"cleanup,omitempty"`

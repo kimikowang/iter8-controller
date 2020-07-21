@@ -366,14 +366,6 @@ func (b *VirtualServiceBuilder) WithHostRegistered(host string) *VirtualServiceB
 	return b
 }
 
-func (b *VirtualServiceBuilder) WithExternalLabel() *VirtualServiceBuilder {
-	if b.ObjectMeta.GetLabels() == nil {
-		b.ObjectMeta.SetLabels(map[string]string{})
-	}
-	b.ObjectMeta.Labels[ExternalReference] = "True"
-	return b
-}
-
 func (b *VirtualServiceBuilder) Build() *v1alpha3.VirtualService {
 	return (*v1alpha3.VirtualService)(b)
 }
