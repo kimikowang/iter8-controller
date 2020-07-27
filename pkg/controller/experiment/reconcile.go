@@ -192,7 +192,7 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 		}
 
 		instance.Status.Assessment.Winner = &response.WinnerAssessment
-		r.markAssessmentUpdate(context, instance, "Winner assessment: %v", response.WinnerAssessment)
+		r.markAssessmentUpdate(context, instance, "Winner assessment: %+v", response.WinnerAssessment)
 
 		strategy := instance.Spec.GetStrategy()
 		_, ok := response.TrafficSplitRecommendation[strategy]
