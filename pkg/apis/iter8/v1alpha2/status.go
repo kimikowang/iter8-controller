@@ -324,16 +324,17 @@ func (s *ExperimentStatus) IsWinnerFound() bool {
 
 // WinnerToString outputs winner assessment in human-readable format
 func (s *ExperimentStatus) WinnerToString() string {
+	out := fmt.Sprintf("[Iteration %d]: ", *s.CurrentIteration)
 	if s.Assessment != nil && s.Assessment.Winner != nil {
 		if s.Assessment.Winner.WinnerFound {
-			return fmt.Sprintf("Current winner (%s) has winning probability of %f.", s.Assessment.Winner.Winner,
+			return out + fmt.Sprintf("Current winner (%s) has winning probability of %f.", s.Assessment.Winner.Winner,
 				s.Assessment.Winner.Probability)
 		} else {
-			return fmt.Sprintf("Winner has not been found yet. Current best version (%s) has winning probability of %f.", s.Assessment.Winner.Winner,
+			return out + fmt.Sprintf("Winner has not been found yet. Current best version (%s) has winning probability of %f.", s.Assessment.Winner.Winner,
 				s.Assessment.Winner.Probability)
 		}
 	} else {
-		return "Not available."
+		return out + "Not available."
 	}
 }
 
