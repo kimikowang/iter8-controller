@@ -14,6 +14,8 @@ limitations under the License.
 */
 package routing
 
+// This file contains helper functions for composing istio routing rules
+
 import (
 	networkingv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
@@ -65,7 +67,7 @@ func (b *DestinationRuleBuilder) WithStableLabel() *DestinationRuleBuilder {
 	if b.ObjectMeta.GetLabels() == nil {
 		b.ObjectMeta.SetLabels(map[string]string{})
 	}
-	b.ObjectMeta.Labels[ExperimentRole] = RoleStable
+	b.ObjectMeta.Labels[ExperimentRole] = roleStable
 	return b
 }
 
@@ -73,7 +75,7 @@ func (b *DestinationRuleBuilder) WithProgressingLabel() *DestinationRuleBuilder 
 	if b.ObjectMeta.GetLabels() == nil {
 		b.ObjectMeta.SetLabels(map[string]string{})
 	}
-	b.ObjectMeta.Labels[ExperimentRole] = RoleProgressing
+	b.ObjectMeta.Labels[ExperimentRole] = roleProgressing
 	return b
 }
 
@@ -83,7 +85,7 @@ func (b *DestinationRuleBuilder) WithInitLabel() *DestinationRuleBuilder {
 	}
 	b.ObjectMeta.Labels[ExperimentInit] = "True"
 	if _, ok := b.ObjectMeta.Labels[ExperimentRole]; !ok {
-		b.ObjectMeta.Labels[ExperimentRole] = RoleInitializing
+		b.ObjectMeta.Labels[ExperimentRole] = roleInitializing
 	}
 	return b
 }
@@ -185,7 +187,7 @@ func (b *VirtualServiceBuilder) WithInitLabel() *VirtualServiceBuilder {
 	}
 	b.ObjectMeta.Labels[ExperimentInit] = "True"
 	if _, ok := b.ObjectMeta.Labels[ExperimentRole]; !ok {
-		b.ObjectMeta.Labels[ExperimentRole] = RoleInitializing
+		b.ObjectMeta.Labels[ExperimentRole] = roleInitializing
 	}
 	return b
 }
@@ -194,7 +196,7 @@ func (b *VirtualServiceBuilder) WithProgressingLabel() *VirtualServiceBuilder {
 	if b.ObjectMeta.GetLabels() == nil {
 		b.ObjectMeta.SetLabels(map[string]string{})
 	}
-	b.ObjectMeta.Labels[ExperimentRole] = RoleProgressing
+	b.ObjectMeta.Labels[ExperimentRole] = roleProgressing
 	return b
 }
 
@@ -202,7 +204,7 @@ func (b *VirtualServiceBuilder) WithStableLabel() *VirtualServiceBuilder {
 	if b.ObjectMeta.GetLabels() == nil {
 		b.ObjectMeta.SetLabels(map[string]string{})
 	}
-	b.ObjectMeta.Labels[ExperimentRole] = RoleStable
+	b.ObjectMeta.Labels[ExperimentRole] = roleStable
 	return b
 }
 
@@ -319,7 +321,7 @@ func (b *VirtualServiceBuilder) ToProgressing(service string, candidateCount int
 	b.Spec.Http[0].Route[0] = &networkingv1alpha3.HTTPRouteDestination{
 		Destination: &networkingv1alpha3.Destination{
 			Host:   service,
-			Subset: SubsetBaseline,
+			Subset: subsetBaseline,
 		},
 		Weight: 100,
 	}

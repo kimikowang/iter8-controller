@@ -31,7 +31,7 @@ import (
 
 func (r *ReconcileExperiment) completeExperiment(context context.Context, instance *iter8v1alpha2.Experiment) error {
 	r.iter8Cache.RemoveExperiment(instance)
-	r.targets.Cleanup(context, instance)
+	targets.Cleanup(context, instance, r.Client)
 	err := r.router.Cleanup(context, instance)
 	if err != nil {
 		return err

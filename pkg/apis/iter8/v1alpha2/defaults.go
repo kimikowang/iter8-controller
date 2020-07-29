@@ -13,6 +13,7 @@ limitations under the License.
 package v1alpha2
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -171,4 +172,30 @@ func (s *ExperimentSpec) TerminateExperiment() {
 	s.ManualOverride = &ManualOverride{
 		Action: ActionTerminate,
 	}
+}
+
+// Validate checks whether specification in Service can be supported by iter8 or not
+// returns nil if ok; otherwise non-nil err with detailed explanation will be returned
+func (s *Service) Validate() error {
+	// check service/hosts specification
+	if s.Name == "" && len(s.Hosts) == 0 {
+		return fmt.Errorf("Either Name or Hosts should be specified in Service")
+	}
+
+	// check kind/apiVersion specification
+	switch s.Kind {
+	case "Deployment", "":
+		if !(s.APIVersion == "" || s.APIVersion == "apps/v1" || s.APIVersion == "v1") {
+			return fmt.Errorf("Invalid kind/apiVerison pair: %s, %s", s.Kind, s.APIVersion)
+		}
+		s.Kind = "Deployment"
+	case "Service":
+		if !(s.APIVersion == "" || s.APIVersion == "v1") {
+			return fmt.Errorf("Invalid kind/apiVerison pair: %s, %s", s.Kind, s.APIVersion)
+		}
+	default:
+		return fmt.Errorf("Invalid kind/apiVerison pair: %s, %s", s.Kind, s.APIVersion)
+	}
+
+	return nil
 }

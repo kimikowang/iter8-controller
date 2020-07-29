@@ -15,6 +15,8 @@ limitations under the License.
 
 package routing
 
+// This file contains specifications of a router used for routing traffic for an iter8 experiment
+
 import (
 	"context"
 	"fmt"
@@ -30,33 +32,20 @@ import (
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
 )
 
-const (
-	SubsetBaseline  = "iter8-baseline"
-	SubsetCandidate = "iter8-candidate"
-	SubsetStable    = "iter8-stable"
-
-	RoleInitializing = "initializing"
-	RoleStable       = "stable"
-	RoleProgressing  = "progressing"
-
-	ExperimentInit  = "iter8-tools/init"
-	ExperimentRole  = "iter8-tools/role"
-	ExperimentLabel = "iter8-tools/experiment"
-	ExperimentHost  = "iter8-tools/host"
-)
-
 type istioRoutingRules struct {
 	destinationRule *v1alpha3.DestinationRule
 	virtualService  *v1alpha3.VirtualService
 }
 
+// Router contains istio routing rules instances and istio client used for
+// manipulating the routing rules in a k8s cluster
 type Router struct {
 	client istioclient.Interface
 	rules  istioRoutingRules
 }
 
-// Init returns an initialized router
-func Init(client istioclient.Interface) *Router {
+// Init returns a router instance
+func Init(client istioclient.Interface, instance *iter8v1alpha2.Experiment) *Router {
 	return &Router{
 		rules: istioRoutingRules{
 			destinationRule: &v1alpha3.DestinationRule{},
@@ -67,15 +56,15 @@ func Init(client istioclient.Interface) *Router {
 }
 
 func (r *istioRoutingRules) isProgressing() bool {
-	drRole, drok := r.destinationRule.GetLabels()[ExperimentRole]
-	vsRole, vsok := r.virtualService.GetLabels()[ExperimentRole]
+	drRole, drok := r.destinationRule.GetLabels()[experimentRole]
+	vsRole, vsok := r.virtualService.GetLabels()[experimentRole]
 
-	return drok && vsok && drRole == RoleProgressing && vsRole == RoleProgressing
+	return drok && vsok && drRole == roleProgressing && vsRole == roleProgressing
 }
 
 func (r *istioRoutingRules) isInit() bool {
-	_, drok := r.destinationRule.GetLabels()[ExperimentInit]
-	_, vsok := r.virtualService.GetLabels()[ExperimentInit]
+	_, drok := r.destinationRule.GetLabels()[experimentInit]
+	_, vsok := r.virtualService.GetLabels()[experimentInit]
 
 	return drok && vsok
 }
@@ -102,7 +91,7 @@ func (r *Router) UpdateBaseline(ctx context.Context, instance *iter8v1alpha2.Exp
 	}
 	drb = drb.
 		InitSubsets(1).
-		WithSubset(targets.Baseline, SubsetBaseline, 0).
+		WithSubset(targets.Baseline, subsetBaseline, 0).
 		WithExperimentRegistered(instance.Name)
 
 	dr := (*v1alpha3.DestinationRule)(nil)
@@ -176,6 +165,7 @@ func (r *Router) UpdateBaseline(ctx context.Context, instance *iter8v1alpha2.Exp
 	return
 }
 
+// UpdateCandidates updates routing rules with candidates runtime objects stored in targets
 func (r *Router) UpdateCandidates(context context.Context, targets *targets.Targets) (err error) {
 	if r.rules.isProgressing() {
 		return nil
@@ -230,8 +220,8 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 				// change winner version to stable
 				for i, candidate := range instance.Spec.Candidates {
 					if candidate == assessment.Winner.Winner {
-						toStableSubset[candidateSubsetName(i)] = SubsetStable
-						subsetWeight[SubsetStable] = 100
+						toStableSubset[candidateSubsetName(i)] = subsetStable
+						subsetWeight[subsetStable] = 100
 						break
 					}
 				}
@@ -239,21 +229,21 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 			fallthrough
 		case iter8v1alpha2.OnTerminationToBaseline:
 			// change baseline to stable
-			toStableSubset[SubsetBaseline] = SubsetStable
-			subsetWeight[SubsetStable] = 100
+			toStableSubset[subsetBaseline] = subsetStable
+			subsetWeight[subsetStable] = 100
 		case iter8v1alpha2.OnTerminationKeepLast:
 			// change all subset to stable-0, stable-1...
 			if assessment != nil {
 				stableCnt := 0
 				if assessment.Baseline.Weight > 0 {
-					stableSubset := SubsetStable + "-" + strconv.Itoa(stableCnt)
-					toStableSubset[SubsetBaseline] = stableSubset
+					stableSubset := subsetStable + "-" + strconv.Itoa(stableCnt)
+					toStableSubset[subsetBaseline] = stableSubset
 					subsetWeight[stableSubset] = assessment.Baseline.Weight
 					stableCnt++
 				}
 				for i, candidate := range assessment.Candidates {
 					if candidate.Weight > 0 {
-						stableSubset := SubsetStable + "-" + strconv.Itoa(stableCnt)
+						stableSubset := subsetStable + "-" + strconv.Itoa(stableCnt)
 						toStableSubset[candidateSubsetName(i)] = stableSubset
 						subsetWeight[stableSubset] = candidate.Weight
 						stableCnt++
@@ -265,7 +255,7 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 		dr := NewDestinationRuleBuilder(r.rules.destinationRule).
 			ProgressingToStable(toStableSubset).
 			WithStableLabel().
-			RemoveExperimentLabel().
+			RemoveexperimentLabel().
 			Build()
 		if _, err = r.client.NetworkingV1alpha3().
 			DestinationRules(r.rules.destinationRule.Namespace).
@@ -276,7 +266,7 @@ func (r *Router) Cleanup(context context.Context, instance *iter8v1alpha2.Experi
 		vsb := NewVirtualServiceBuilder(r.rules.virtualService).
 			ProgressingToStable(subsetWeight, instance.Spec.Service.Name, instance.ServiceNamespace()).
 			WithStableLabel().
-			RemoveExperimentLabel()
+			RemoveexperimentLabel()
 		if instance.Spec.Service.Port != nil {
 			vsb = vsb.WithPort(uint32(*instance.Spec.Service.Port))
 		}
@@ -301,7 +291,7 @@ func (r *Router) UpdateTrafficSplit(instance *iter8v1alpha2.Experiment) error {
 	// baseline route
 	rb = rb.WithDestination(NewHTTPRouteDestination().
 		WithHost(util.GetHost(instance)).
-		WithSubset(SubsetBaseline).
+		WithSubset(subsetBaseline).
 		WithWeight(instance.Status.Assessment.Baseline.Weight).Build())
 	for i := range instance.Spec.Candidates {
 		rb = rb.WithDestination(NewHTTPRouteDestination().
@@ -328,7 +318,7 @@ func (r *Router) UpdateTrafficSplit(instance *iter8v1alpha2.Experiment) error {
 
 // GetRoutingRules will inject routing rules into router or return error if there is any
 func (r *Router) GetRoutingRules(instance *iter8v1alpha2.Experiment) error {
-	selector := map[string]string{ExperimentHost: instance.Spec.Service.Name}
+	selector := map[string]string{experimentHost: instance.Spec.Service.Name}
 	drl, err := r.client.NetworkingV1alpha3().DestinationRules(instance.ServiceNamespace()).
 		List(metav1.ListOptions{LabelSelector: labels.Set(selector).String()})
 	if err != nil {
@@ -341,17 +331,6 @@ func (r *Router) GetRoutingRules(instance *iter8v1alpha2.Experiment) error {
 		return err
 	}
 
-	if len(drl.Items) == 0 && len(vsl.Items) == 0 {
-		// Defer initialization of routing rules until targets identified
-		// Initialize routing rules
-		// if err = r.InitRoutingRules(instance); err != nil {
-		// 	return err
-		// }
-	} else {
-		if err = r.validateDetectedRules(drl, vsl, instance); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -372,20 +351,20 @@ func (r *Router) GetRoutingRuleName() string {
 func (r *Router) validateDetectedRules(drl *v1alpha3.DestinationRuleList, vsl *v1alpha3.VirtualServiceList, instance *iter8v1alpha2.Experiment) error {
 	// should only be one set of rules for stable or progressing
 	if len(drl.Items) == 1 && len(vsl.Items) == 1 {
-		drrole, drok := drl.Items[0].GetLabels()[ExperimentRole]
-		vsrole, vsok := vsl.Items[0].GetLabels()[ExperimentRole]
+		drrole, drok := drl.Items[0].GetLabels()[experimentRole]
+		vsrole, vsok := vsl.Items[0].GetLabels()[experimentRole]
 		if drok && vsok {
-			if drrole == RoleInitializing || vsrole == RoleInitializing {
+			if drrole == roleInitializing || vsrole == roleInitializing {
 				// Valid initializing rules detected
 				r.rules.destinationRule = drl.Items[0].DeepCopy()
 				r.rules.virtualService = vsl.Items[0].DeepCopy()
-			} else if drrole == RoleStable && vsrole == RoleStable {
+			} else if drrole == roleStable && vsrole == roleStable {
 				// Valid stable rules detected
 				r.rules.destinationRule = drl.Items[0].DeepCopy()
 				r.rules.virtualService = vsl.Items[0].DeepCopy()
-			} else if drrole == RoleProgressing && vsrole == RoleProgressing {
-				drLabel, drok := drl.Items[0].GetLabels()[ExperimentLabel]
-				vsLabel, vsok := vsl.Items[0].GetLabels()[ExperimentLabel]
+			} else if drrole == roleProgressing && vsrole == roleProgressing {
+				drLabel, drok := drl.Items[0].GetLabels()[experimentLabel]
+				vsLabel, vsok := vsl.Items[0].GetLabels()[experimentLabel]
 				if drok && vsok {
 					expName := instance.GetName()
 					if drLabel == expName && vsLabel == expName {
@@ -439,5 +418,5 @@ func (r *Router) InitRoutingRules(instance *iter8v1alpha2.Experiment) error {
 }
 
 func candidateSubsetName(idx int) string {
-	return SubsetCandidate + "-" + strconv.Itoa(idx)
+	return subsetCandidate + "-" + strconv.Itoa(idx)
 }
