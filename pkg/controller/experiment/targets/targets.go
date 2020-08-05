@@ -33,6 +33,15 @@ import (
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
 )
 
+// Role of target
+type Role string
+
+const (
+	RoleService   = Role("service")
+	RoleBaseline  = Role("baseline")
+	RoleCandidate = Role("candidate")
+)
+
 // Targets contains substantiated runtime objects of internal service, baseline and candidates
 // that are specified inside an experiment cr; and also supplementray objects to help fulfill the getter functions
 type Targets struct {
@@ -174,14 +183,14 @@ func getObject(ctx context.Context, c client.Client, obj runtime.Object) error {
 // Form runtime object with meta info and kind specified
 func getRuntimeObject(om metav1.ObjectMeta, kind string) runtime.Object {
 	switch kind {
-	case "Deployment":
-		return &appsv1.Deployment{
-			ObjectMeta: om,
-		}
 	case "Service":
 		return &corev1.Service{
 			ObjectMeta: om,
 		}
+	default:
+		// Deployment
+		return &appsv1.Deployment{
+			ObjectMeta: om,
+		}
 	}
-	return nil
 }

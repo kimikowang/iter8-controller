@@ -180,7 +180,8 @@ func (s *ExperimentStatus) MarkMetricsSynced(messageFormat string, messageA ...i
 func (s *ExperimentStatus) MarkMetricsSyncedError(messageFormat string, messageA ...interface{}) (bool, string) {
 	reason := ReasonSyncMetricsError
 	s.Phase = PhasePause
-	*s.Message = composeMessage(reason, messageFormat, messageA...)
+	message := composeMessage(reason, messageFormat, messageA...)
+	s.Message = &message
 	return s.GetCondition(ExperimentConditionMetricsSynced).
 		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...), reason
 }
@@ -203,7 +204,8 @@ func (s *ExperimentStatus) MarkTargetsFound(messageFormat string, messageA ...in
 func (s *ExperimentStatus) MarkTargetsError(messageFormat string, messageA ...interface{}) (bool, string) {
 	reason := ReasonTargetsError
 	s.Phase = PhasePause
-	*s.Message = composeMessage(reason, messageFormat, messageA...)
+	message := composeMessage(reason, messageFormat, messageA...)
+	s.Message = &message
 	return s.GetCondition(ExperimentConditionTargetsProvided).
 		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...), reason
 }

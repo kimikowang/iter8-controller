@@ -39,8 +39,9 @@ import (
 
 	metricsv1alpha2 "github.com/iter8-tools/iter8-controller/pkg/analytics/metrics/v1alpha2"
 	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
-	iter8cache "github.com/iter8-tools/iter8-controller/pkg/controller/experiment/cache"
+	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/adapter"
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/routing"
+	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/routing/router"
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/targets"
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
 	"github.com/iter8-tools/iter8-controller/pkg/grafana"
@@ -50,8 +51,6 @@ import (
 var log = logf.Log.WithName("experiment-controller")
 
 const (
-	KubernetesV1 = "v1"
-
 	Iter8Controller = "iter8-controller"
 	Finalizer       = "finalizer.iter8-tools"
 )
@@ -92,7 +91,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileExperiment, error) {
 
 	grafanaConfig := grafana.NewConfigStore(log, mgr.GetClient())
 
-	iter8Cache := iter8cache.New(log)
+	iter8Adapter := adapter.New(log)
 
 	return &ReconcileExperiment{
 		Client:             mgr.GetClient(),
@@ -100,7 +99,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileExperiment, error) {
 		scheme:             mgr.GetScheme(),
 		eventRecorder:      mgr.GetEventRecorderFor(Iter8Controller),
 		notificationCenter: nc,
-		iter8Cache:         iter8Cache,
+		iter8Adapter:       iter8Adapter,
 		grafanaConfig:      grafanaConfig,
 	}, nil
 }
@@ -116,7 +115,7 @@ func add(mgr manager.Manager, r *ReconcileExperiment) error {
 	deploymentPredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			name, namespace := e.Meta.GetName(), e.Meta.GetNamespace()
-			ok := r.iter8Cache.MarkTargetDeploymentFound(name, namespace)
+			ok := r.iter8Adapter.MarkDeploymentDetected(name, namespace)
 			if !ok {
 				return false
 			}
@@ -130,7 +129,7 @@ func add(mgr manager.Manager, r *ReconcileExperiment) error {
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			name, namespace := e.Meta.GetName(), e.Meta.GetNamespace()
-			ok := r.iter8Cache.MarkTargetDeploymentMissing(name, namespace)
+			ok := r.iter8Adapter.MarkDeploymentDeleted(name, namespace)
 			if !ok {
 				return false
 			}
@@ -144,7 +143,7 @@ func add(mgr manager.Manager, r *ReconcileExperiment) error {
 	deploymentToExperiment := handler.ToRequestsFunc(
 		func(a handler.MapObject) []reconcile.Request {
 			name, namespace := a.Meta.GetName(), a.Meta.GetNamespace()
-			experimentName, experimentNamespace, ok := r.iter8Cache.DeploymentToExperiment(name, namespace)
+			experimentName, experimentNamespace, ok := r.iter8Adapter.DeploymentToExperiment(name, namespace)
 			if !ok {
 				return nil
 			}
@@ -166,7 +165,7 @@ func add(mgr manager.Manager, r *ReconcileExperiment) error {
 	servicePredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			name, namespace := e.Meta.GetName(), e.Meta.GetNamespace()
-			ok := r.iter8Cache.MarkTargetServiceFound(name, namespace)
+			ok := r.iter8Adapter.MarkServiceDetected(name, namespace)
 			if !ok {
 				return false
 			}
@@ -180,7 +179,7 @@ func add(mgr manager.Manager, r *ReconcileExperiment) error {
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			name, namespace := e.Meta.GetName(), e.Meta.GetNamespace()
-			ok := r.iter8Cache.MarkTargetServiceMissing(name, namespace)
+			ok := r.iter8Adapter.MarkServiceDeleted(name, namespace)
 			if !ok {
 				return false
 			}
@@ -193,7 +192,7 @@ func add(mgr manager.Manager, r *ReconcileExperiment) error {
 	serviceToExperiment := handler.ToRequestsFunc(
 		func(a handler.MapObject) []reconcile.Request {
 			name, namespace := a.Meta.GetName(), a.Meta.GetNamespace()
-			experimentName, experimentNamespace, ok := r.iter8Cache.ServiceToExperiment(name, namespace)
+			experimentName, experimentNamespace, ok := r.iter8Adapter.ServiceToExperiment(name, namespace)
 			if !ok {
 				return nil
 			}
@@ -257,11 +256,11 @@ type ReconcileExperiment struct {
 	eventRecorder      record.EventRecorder
 	notificationCenter *iter8notifier.NotificationCenter
 	istioClient        istioclient.Interface
-	iter8Cache         iter8cache.Interface
+	iter8Adapter       adapter.Interface
 	grafanaConfig      grafana.Interface
 
 	targets *targets.Targets
-	router  *routing.Router
+	router  router.Interface
 	interState
 }
 
@@ -299,6 +298,11 @@ func (r *ReconcileExperiment) Reconcile(request reconcile.Request) (reconcile.Re
 	// Init metadata of experiment instance
 	if instance.Status.InitTimestamp == nil {
 		instance.InitStatus()
+		if err := instance.Spec.Service.Validate(); err != nil {
+			r.markTargetsError(ctx, instance, "Invalid service spec: %v", err)
+			return r.endRequest(ctx, instance)
+		}
+
 		if err := r.Status().Update(ctx, instance); err != nil && !validUpdateErr(err) {
 			log.Error(err, "Failed to update status")
 			return reconcile.Result{}, nil
@@ -320,16 +324,16 @@ func (r *ReconcileExperiment) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, nil
 	}
 
-	ctx, err = r.iter8Cache.RegisterExperiment(ctx, instance)
+	ctx, err = r.iter8Adapter.RegisterExperiment(ctx, instance)
 	if err != nil {
 		r.markTargetsError(ctx, instance, "%v", err)
 		return r.endRequest(ctx, instance)
 	}
-	r.syncExperiment(ctx, instance)
+	ctx = r.syncExperiment(ctx, instance)
 
 	if err := r.proceed(ctx, instance); err != nil {
 		log.Info("NotToProceed", "status", err.Error())
-		return reconcile.Result{}, nil
+		return r.endRequest(ctx, instance)
 	}
 
 	if err := r.syncMetrics(ctx, instance); err != nil {
@@ -404,62 +408,48 @@ func (r *ReconcileExperiment) finalize(context context.Context, instance *iter8v
 	return r.finalizeIstio(context, instance)
 }
 
-func (r *ReconcileExperiment) syncExperiment(context context.Context, instance *iter8v1alpha2.Experiment) {
-	eas := experimentAbstract(context)
-	// Abort Experiment by setting action flag
-	if instance.Spec.Terminate() {
-		// map traffic split to assessment
-		overrideAssessment(instance)
-	} else if eas.Terminate() {
-		if eas.GetDeletedRole() != "" {
-			onDeletedTarget(instance, eas.GetDeletedRole())
-			overrideAssessment(instance)
-			r.markTargetsError(context, instance, "%s", eas.GetTerminateStatus())
-		}
-	} else if eas.Resume() {
-		instance.Status.Phase = iter8v1alpha2.PhaseProgressing
+func (r *ReconcileExperiment) syncExperiment(context context.Context, instance *iter8v1alpha2.Experiment) context.Context {
+	r.initState()
+
+	eas := experimentAction(context)
+	if eas != nil && (eas.Refresh() || eas.Resume()) {
+		r.markRefresh()
 	}
 
-	r.initState()
-	r.targets = targets.Init(instance, r.Client)
-	r.router = routing.Init(r.istioClient)
+	context = r.injectClients(context)
+	r.router = routing.GetRouter(context, instance)
+
+	return context
 }
 
+// proceed determines whether reconciliation of experiment should continue or not
+// refresh/terminate-command > pause-action >resume-action
 func (r *ReconcileExperiment) proceed(context context.Context, instance *iter8v1alpha2.Experiment) (err error) {
-	// Pause action rejects all other resume mechanisms except resume action
+	// proceed
+	if r.needRefresh() || instance.Spec.Terminate() {
+		return
+	}
+
+	// pause experiment
 	if instance.Spec.Pause() {
-		r.markActionPause(context, instance, "")
-		if r.needStatusUpdate() {
-			if err := r.Status().Update(context, instance); err != nil && !validUpdateErr(err) {
-				log.Error(err, "Fail to update status")
-				return err
-			}
+		instance.Spec.ManualOverride = nil
+		if err := r.Update(context, instance); err != nil && !validUpdateErr(err) {
+			log.Error(err, "Fail to update instance")
+			return err
 		}
+		r.markActionPause(context, instance, "")
 		err = fmt.Errorf("phase: %v, action: %s", instance.Status.Phase, instance.Spec.GetAction())
 		return
 	}
 
-	if r.needRefresh() {
-		return
-	}
-
-	if instance.Status.Phase == iter8v1alpha2.PhasePause {
+	// resume experiment
+	if instance.Spec.Resume() {
+		instance.Spec.ManualOverride = nil
+		if err := r.Update(context, instance); err != nil && !validUpdateErr(err) {
+			log.Error(err, "Fail to update instance")
+			return err
+		}
 		r.markActionResume(context, instance, "")
-		// termination request overrides pause phase
-		if instance.Spec.Terminate() {
-			return
-		}
-		if instance.Spec.Resume() {
-			// clear
-			instance.Spec.ManualOverride = nil
-			if err := r.Update(context, instance); err != nil && !validUpdateErr(err) {
-				log.Error(err, "Fail to update instance")
-				return err
-			}
-
-		} else {
-			err = fmt.Errorf("phase: %v, action: %s", instance.Status.Phase, instance.Spec.GetAction())
-		}
 	}
 
 	return

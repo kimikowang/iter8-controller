@@ -24,7 +24,8 @@ import (
 type loggerKeyType string
 
 const (
-	LoggerKey = loggerKeyType("logger")
+	LoggerKey      = loggerKeyType("logger")
+	IstioClientKey = "istioClient"
 )
 
 // Logger gets the logger from the context.

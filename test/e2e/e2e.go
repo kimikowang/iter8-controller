@@ -166,7 +166,7 @@ func (tc *testCase) runPostHook(ctx context.Context, cl client.Client) error {
 
 func (tc *testCase) checkHasResults(ctx context.Context, cl client.Client) error {
 	for _, result := range tc.wantResults {
-		retries := 10
+		retries := 5
 		for {
 			obj, err := getObject(ctx, cl, result)
 			if err != nil {
@@ -175,7 +175,7 @@ func (tc *testCase) checkHasResults(ctx context.Context, cl client.Client) error
 
 			if diff := cmp.Diff(result, obj, compoptions...); diff != "" {
 				if retries == 0 {
-					return fmt.Errorf("unexpected reponse diff (-want, +got) = %v", diff)
+					return fmt.Errorf("unexpected reponse diff (-want, +got) = %v, want: %+v, got: %+v", diff, result, obj)
 				}
 			} else {
 				break

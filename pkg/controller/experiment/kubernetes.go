@@ -84,21 +84,14 @@ func (r *ReconcileExperiment) finalizeIstio(context context.Context, instance *i
 		if _, err := r.syncKubernetes(context, instance); err != nil {
 			util.Logger(context).Error(err, "Fail to execute finalize sync process")
 		}
-		r.iter8Cache.RemoveExperiment(instance)
+		r.iter8Adapter.RemoveExperiment(instance)
 	}
 
 	return reconcile.Result{}, removeFinalizer(context, r, instance, Finalizer)
 }
 
 func (r *ReconcileExperiment) toDetectTargets(context context.Context, instance *iter8v1alpha2.Experiment) bool {
-	// Skip targets check if termination request issued from cache or
-	// targets have been marked found during the experiment
-	// refesh command force to do a new check
-	if experimentAbstract(context) != nil && experimentAbstract(context).Terminate() {
-		return false
-	}
-
-	if instance.Status.TargetsFound() && !r.needRefresh() {
+	if instance.Spec.Terminate() || instance.Status.TargetsFound() && !r.needRefresh() {
 		return false
 	}
 
@@ -119,7 +112,7 @@ func (r *ReconcileExperiment) toProcessIteration(context context.Context, instan
 
 func (r *ReconcileExperiment) toComplete(context context.Context, instance *iter8v1alpha2.Experiment) bool {
 	return instance.Spec.GetMaxIterations() < *instance.Status.CurrentIteration ||
-		instance.Spec.Terminate() || experimentAbstract(context).Terminate()
+		instance.Spec.Terminate()
 }
 
 func (r *ReconcileExperiment) endRequest(context context.Context, instance *iter8v1alpha2.Experiment) (reconcile.Result, error) {

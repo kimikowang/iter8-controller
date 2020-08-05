@@ -24,6 +24,9 @@ const (
 	// DefaultZeroToOne indicate whether the value range of metric is from 0 to 1  by default, which is false
 	DefaultZeroToOne bool = false
 
+	// DefaultCleanup indicate whether router and targets receiving no traffic should be deleted after expreriment
+	DefaultCleanup bool = false
+
 	// DefaultStrategy is the default value for strategy, which is progressive
 	DefaultStrategy StrategyType = StrategyProgressive
 
@@ -159,6 +162,14 @@ func (s *ExperimentSpec) GetAnalyticsEndpoint() string {
 	return *s.AnalyticsEndpoint
 }
 
+// GetCleanup returns whether router and targets receiving no traffic should be deleted after expreriment
+func (s *ExperimentSpec) GetCleanup() bool {
+	if s.Cleanup == nil {
+		return DefaultCleanup
+	}
+	return *s.Cleanup
+}
+
 // IsZeroToOne returns specified(or default) zeroToOne value
 func (r *RatioMetric) IsZeroToOne() bool {
 	if r.ZeroToOne == nil {
@@ -188,7 +199,6 @@ func (s *Service) Validate() error {
 		if !(s.APIVersion == "" || s.APIVersion == "apps/v1" || s.APIVersion == "v1") {
 			return fmt.Errorf("Invalid kind/apiVerison pair: %s, %s", s.Kind, s.APIVersion)
 		}
-		s.Kind = "Deployment"
 	case "Service":
 		if !(s.APIVersion == "" || s.APIVersion == "v1") {
 			return fmt.Errorf("Invalid kind/apiVerison pair: %s, %s", s.Kind, s.APIVersion)

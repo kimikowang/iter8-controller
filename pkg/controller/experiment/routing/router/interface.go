@@ -13,21 +13,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package routing
+package router
 
 import (
+	runtime "k8s.io/apimachinery/pkg/runtime"
+
 	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/targets"
 )
 
-// Handler declares functions to be implemented so as to be used by iter8 router
-type Handler interface {
+// Interface declares functions to be implemented so as to be used by iter8 router
+type Interface interface {
+	// Fetch gets routing rules from cluster
+	Fetch(instance *iter8v1alpha2.Experiment) error
 	// UpdateRouteWithBaseline updates routing rules with runtime object of baseline
-	UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, targets *targets.Targets) error
+	UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, baseline runtime.Object) error
 	// UpdateRouteWithCandidates updates routing rules with runtime objects of candidates
-	UpdateRouteWithCandidates(instance *iter8v1alpha2.Experiment, targets *targets.Targets) error
+	UpdateRouteWithCandidates(instance *iter8v1alpha2.Experiment, candidates []runtime.Object) error
 	// UpdateRouteWithTrafficUpdate updates routing rules with new traffic state from assessment
 	UpdateRouteWithTrafficUpdate(instance *iter8v1alpha2.Experiment) error
 	// UpdateRouteToStable updates routing rules to desired stable state
 	UpdateRouteToStable(instance *iter8v1alpha2.Experiment) error
+	// Print prints detailed information about the router
+	Print() string
 }
