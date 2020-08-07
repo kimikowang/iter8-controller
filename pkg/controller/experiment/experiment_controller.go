@@ -37,20 +37,20 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	metricsv1alpha2 "github.com/iter8-tools/iter8-controller/pkg/analytics/metrics/v1alpha2"
-	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/adapter"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/routing"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/routing/router"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
-	"github.com/iter8-tools/iter8-controller/pkg/grafana"
-	iter8notifier "github.com/iter8-tools/iter8-controller/pkg/notifier"
+	metricsv1alpha2 "github.com/iter8-tools/iter8/pkg/analytics/metrics/v1alpha2"
+	iter8v1alpha2 "github.com/iter8-tools/iter8/pkg/apis/iter8/v1alpha2"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/adapter"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/routing"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/routing/router"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/util"
+	"github.com/iter8-tools/iter8/pkg/grafana"
+	iter8notifier "github.com/iter8-tools/iter8/pkg/notifier"
 )
 
 var log = logf.Log.WithName("experiment-controller")
 
 const (
-	Iter8Controller = "iter8-controller"
+	Iter8Controller = "iter8"
 	Finalizer       = "finalizer.iter8-tools"
 )
 

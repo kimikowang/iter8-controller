@@ -21,8 +21,8 @@ function cleanup() {
   # let the controller remove the finalizer
   if [ -n "$CONTROLLER_PID" ]
   then
-    kill $CONTROLLER_PID
     unset CONTROLLER_PID
+    pkill main 
     echo "controller stops"
   fi
 }
@@ -53,7 +53,7 @@ make run &
 CONTROLLER_PID=$!
 echo "controller started $CONTROLLER_PID"
 
-sleep 10 # wait for controller to start
+sleep 5 # wait for controller to start
 
 go test -run TestExperiment -v -p 1 ./test/e2e/ -args -namespace ${NAMESPACE}
 
