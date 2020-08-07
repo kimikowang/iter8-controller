@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/iter8-tools/iter8-controller/pkg/analytics"
 	analyticsv1alpha2 "github.com/iter8-tools/iter8-controller/pkg/analytics/api/v1alpha2"
 	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
 )
@@ -111,7 +112,7 @@ func GetRollToWinnerMockResponse(instance *iter8v1alpha2.Experiment, winIdx int)
 	for i := range cas {
 		ca := analyticsv1alpha2.CandidateAssessment{
 			VersionAssessment: analyticsv1alpha2.VersionAssessment{
-				ID:             candidates[i],
+				ID:             analytics.GetCandidateID(i),
 				WinProbability: 0,
 				RequestCount:   10,
 			},
@@ -126,28 +127,28 @@ func GetRollToWinnerMockResponse(instance *iter8v1alpha2.Experiment, winIdx int)
 	strategy := instance.Spec.GetStrategy()
 	tsr := map[string]map[string]int32{
 		strategy: map[string]int32{
-			instance.Spec.Baseline: 20,
+			analytics.GetBaselineID(): 20,
 		},
 	}
 
-	for i, name := range candidates {
+	for i := range candidates {
 		if i == winIdx {
-			tsr[strategy][name] = 80
+			tsr[strategy][analytics.GetCandidateID(i)] = 80
 		} else {
-			tsr[strategy][name] = 0
+			tsr[strategy][analytics.GetCandidateID(i)] = 0
 		}
 	}
 
 	res := analyticsv1alpha2.Response{
 		BaselineAssessment: analyticsv1alpha2.VersionAssessment{
-			ID:             instance.Spec.Baseline,
+			ID:             analytics.GetBaselineID(),
 			WinProbability: 0,
 			RequestCount:   10,
 		},
 		CandidateAssessments: cas,
 		WinnerAssessment: analyticsv1alpha2.WinnerAssessment{
 			WinnerFound: true,
-			Winner:      candidates[winIdx],
+			Winner:      analytics.GetCandidateID(winIdx),
 		},
 		TrafficSplitRecommendation: tsr,
 	}
@@ -161,7 +162,7 @@ func GetAbortExperimentResponse(instance *iter8v1alpha2.Experiment) analyticsv1a
 	for i := range cas {
 		ca := analyticsv1alpha2.CandidateAssessment{
 			VersionAssessment: analyticsv1alpha2.VersionAssessment{
-				ID:             instance.Spec.Candidates[i],
+				ID:             analytics.GetCandidateID(i),
 				WinProbability: 0,
 				RequestCount:   10,
 			},
@@ -173,7 +174,7 @@ func GetAbortExperimentResponse(instance *iter8v1alpha2.Experiment) analyticsv1a
 	strategy := instance.Spec.GetStrategy()
 	tsr := map[string]map[string]int32{
 		strategy: map[string]int32{
-			instance.Spec.Baseline: 100,
+			analytics.GetBaselineID(): 100,
 		},
 	}
 
@@ -183,7 +184,7 @@ func GetAbortExperimentResponse(instance *iter8v1alpha2.Experiment) analyticsv1a
 
 	res := analyticsv1alpha2.Response{
 		BaselineAssessment: analyticsv1alpha2.VersionAssessment{
-			ID:             instance.Spec.Baseline,
+			ID:             analytics.GetBaselineID(),
 			WinProbability: 100,
 			RequestCount:   10,
 		},
@@ -200,7 +201,7 @@ func GetRollbackMockResponse(instance *iter8v1alpha2.Experiment) analyticsv1alph
 	for i := range cas {
 		ca := analyticsv1alpha2.CandidateAssessment{
 			VersionAssessment: analyticsv1alpha2.VersionAssessment{
-				ID:             instance.Spec.Candidates[i],
+				ID:             analytics.GetCandidateID(i),
 				WinProbability: 0,
 				RequestCount:   10,
 			},
@@ -212,17 +213,17 @@ func GetRollbackMockResponse(instance *iter8v1alpha2.Experiment) analyticsv1alph
 	strategy := instance.Spec.GetStrategy()
 	tsr := map[string]map[string]int32{
 		strategy: map[string]int32{
-			instance.Spec.Baseline: 100,
+			analytics.GetBaselineID(): 100,
 		},
 	}
 
-	for _, name := range candidates {
-		tsr[strategy][name] = 0
+	for i := range candidates {
+		tsr[strategy][analytics.GetCandidateID(i)] = 0
 	}
 
 	res := analyticsv1alpha2.Response{
 		BaselineAssessment: analyticsv1alpha2.VersionAssessment{
-			ID:             instance.Spec.Baseline,
+			ID:             analytics.GetBaselineID(),
 			WinProbability: 100,
 			RequestCount:   10,
 		},

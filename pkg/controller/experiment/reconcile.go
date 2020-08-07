@@ -47,17 +47,20 @@ func (r *ReconcileExperiment) completeExperiment(context context.Context, instan
 // returns hard-coded termination message
 func completeStatusMessage(instance *iter8v1alpha2.Experiment) string {
 	out := ""
-	switch instance.Spec.GetOnTermination() {
-	case iter8v1alpha2.OnTerminationToWinner:
-		if instance.Status.IsWinnerFound() {
-			out += "Traffic To Winner"
-			break
+
+	if instance.Status.RoutingRulesReady() {
+		switch instance.Spec.GetOnTermination() {
+		case iter8v1alpha2.OnTerminationToWinner:
+			if instance.Status.IsWinnerFound() {
+				out += "Traffic To Winner"
+				break
+			}
+			fallthrough
+		case iter8v1alpha2.OnTerminationToBaseline:
+			out += "Traffic To Baseline"
+		case iter8v1alpha2.OnTerminationKeepLast:
+			out += "Keep Last Traffic"
 		}
-		fallthrough
-	case iter8v1alpha2.OnTerminationToBaseline:
-		out += "Traffic To Baseline"
-	case iter8v1alpha2.OnTerminationKeepLast:
-		out += "Keep Last Traffic"
 	}
 
 	if instance.Spec.Terminate() {
@@ -72,8 +75,6 @@ func (r *ReconcileExperiment) checkOrInitRules(context context.Context, instance
 	if err != nil {
 		r.markRoutingRulesError(context, instance, "Error in getting routing rules: %s, Experiment Ended.", err.Error())
 		r.completeExperiment(context, instance)
-	} else {
-		r.markRoutingRulesReady(context, instance, "")
 	}
 
 	return err
@@ -128,7 +129,7 @@ func (r *ReconcileExperiment) detectTargets(context context.Context, instance *i
 	}
 
 	r.markTargetsFound(context, instance, "")
-
+	r.markRoutingRulesReady(context, instance, "")
 	return true, nil
 }
 

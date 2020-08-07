@@ -233,7 +233,6 @@ func (r *Router) UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, bas
 		vs, err = r.client.NetworkingV1alpha3().
 			VirtualServices(r.rules.virtualService.GetNamespace()).
 			Update(vsb.Build())
-		r.logger.Info("UpdateBaseline", "update vs")
 	}
 	if err != nil {
 		return err
@@ -344,8 +343,8 @@ func (r *Router) UpdateRouteWithTrafficUpdate(instance *iter8v1alpha2.Experiment
 
 // UpdateRouteToStable updates routing rules to desired stable state
 func (r *Router) UpdateRouteToStable(instance *iter8v1alpha2.Experiment) (err error) {
-	if r.rules == nil {
-		r.logger.Info("NoOpInUpdateRouteToStable", "routing rules not initialized")
+	if r.rules == nil || !(r.rules.isProgressing() || r.rules.isInitializing()) {
+		r.logger.Info("NoOpInUpdateRouteToStable", "routing rules not initialized", "")
 		return nil
 	}
 
@@ -353,12 +352,14 @@ func (r *Router) UpdateRouteToStable(instance *iter8v1alpha2.Experiment) (err er
 		// delete routing rules
 		if err = r.client.NetworkingV1alpha3().VirtualServices(r.rules.virtualService.Namespace).
 			Delete(r.rules.virtualService.Name, &metav1.DeleteOptions{}); err != nil {
+			r.logger.Info("Err in deleting vs", "err", err)
 			return
 		}
 
 		if r.handler.requireDestinationRule() {
-			if err = r.client.NetworkingV1alpha3().VirtualServices(r.rules.virtualService.Namespace).
-				Delete(r.rules.virtualService.Name, &metav1.DeleteOptions{}); err != nil {
+			if err = r.client.NetworkingV1alpha3().DestinationRules(r.rules.destinationRule.Namespace).
+				Delete(r.rules.destinationRule.Name, &metav1.DeleteOptions{}); err != nil {
+				r.logger.Info("Err in deleting dr", "err", err)
 				return
 			}
 		}
@@ -393,7 +394,7 @@ func (r *Router) UpdateRouteToStable(instance *iter8v1alpha2.Experiment) (err er
 			}
 		}
 	}
-	return
+	return nil
 }
 
 func (r *Router) updateVSFromExperiment(vs *v1alpha3.VirtualService, instance *iter8v1alpha2.Experiment) *v1alpha3.VirtualService {

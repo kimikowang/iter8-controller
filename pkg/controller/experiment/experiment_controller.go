@@ -401,13 +401,6 @@ func removeFinalizer(context context.Context, c client.Client, instance *iter8v1
 	return
 }
 
-func (r *ReconcileExperiment) finalize(context context.Context, instance *iter8v1alpha2.Experiment) (reconcile.Result, error) {
-	log := util.Logger(context)
-	log.Info("finalizing")
-
-	return r.finalizeIstio(context, instance)
-}
-
 func (r *ReconcileExperiment) syncExperiment(context context.Context, instance *iter8v1alpha2.Experiment) context.Context {
 	r.initState()
 

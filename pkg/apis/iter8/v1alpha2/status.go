@@ -191,6 +191,11 @@ func (s *ExperimentStatus) TargetsFound() bool {
 	return s.GetCondition(ExperimentConditionTargetsProvided).Status == corev1.ConditionTrue
 }
 
+// RoutingRulesReady returns whether status of ExperimentConditionRoutingRulesReady is true or not
+func (s *ExperimentStatus) RoutingRulesReady() bool {
+	return s.GetCondition(ExperimentConditionRoutingRulesReady).Status == corev1.ConditionTrue
+}
+
 // MarkTargetsFound sets the condition that the all target have been found
 // Return true if it's converted from false or unknown
 func (s *ExperimentStatus) MarkTargetsFound(messageFormat string, messageA ...interface{}) (bool, string) {

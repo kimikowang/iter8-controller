@@ -175,7 +175,7 @@ func (tc *testCase) checkHasResults(ctx context.Context, cl client.Client) error
 
 			if diff := cmp.Diff(result, obj, compoptions...); diff != "" {
 				if retries == 0 {
-					return fmt.Errorf("unexpected reponse diff (-want, +got) = %v, want: %+v, got: %+v", diff, result, obj)
+					return fmt.Errorf("unexpected reponse diff (-want, +got) = %v", diff)
 				}
 			} else {
 				break
@@ -284,9 +284,6 @@ func runTestCases(t *testing.T, service *test.AnalyticsService, testCases map[st
 			if err := tc.runFinalizers(ctx, client); err != nil {
 				t.Fatalf("Failed running finalizers %v", err)
 			}
-
-			// TODO: This shouldn't be hard coded
-			time.Sleep(time.Second * 3)
 		})
 	}
 }

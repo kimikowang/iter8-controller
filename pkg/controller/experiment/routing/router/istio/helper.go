@@ -40,22 +40,22 @@ func NewDestinationRuleBuilder(dr *v1alpha3.DestinationRule) *DestinationRuleBui
 	return (*DestinationRuleBuilder)(dr)
 }
 
-func NewDestinationRule(serviceName, name, namespace string) *DestinationRuleBuilder {
+func NewDestinationRule(host, experimentName, namespace string) *DestinationRuleBuilder {
 	dr := &v1alpha3.DestinationRule{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha3.SchemeGroupVersion.String(),
 			Kind:       "DestinationRule",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceName + "." + namespace + IstioRuleSuffix,
+			Name:      host + IstioRuleSuffix,
 			Namespace: namespace,
 			Labels: map[string]string{
-				experimentLabel: name,
-				experimentHost:  serviceName,
+				experimentLabel: experimentName,
+				experimentHost:  host,
 			},
 		},
 		Spec: networkingv1alpha3.DestinationRule{
-			Host:    serviceName,
+			Host:    host,
 			Subsets: []*networkingv1alpha3.Subset{},
 		},
 	}
@@ -151,7 +151,7 @@ func (b *DestinationRuleBuilder) Build() *v1alpha3.DestinationRule {
 	return (*v1alpha3.DestinationRule)(b)
 }
 
-func NewVirtualService(host, name, namespace string) *VirtualServiceBuilder {
+func NewVirtualService(host, experimentName, namespace string) *VirtualServiceBuilder {
 	vs := &v1alpha3.VirtualService{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha3.SchemeGroupVersion.String(),
@@ -161,7 +161,7 @@ func NewVirtualService(host, name, namespace string) *VirtualServiceBuilder {
 			Name:      host + IstioRuleSuffix,
 			Namespace: namespace,
 			Labels: map[string]string{
-				experimentLabel: name + "." + namespace,
+				experimentLabel: experimentName + "." + namespace,
 				experimentHost:  host,
 			},
 		},

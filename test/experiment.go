@@ -142,8 +142,8 @@ func DeleteExperiment(name string, namespace string) Hook {
 }
 
 func ResumeExperiment(exp *v1alpha2.Experiment) Hook {
-	exp = (*ExperimentBuilder)(exp).
+	newexp := exp.DeepCopy()
+	return UpdateObject((*ExperimentBuilder)(newexp).
 		WithResumeAction().
-		Build()
-	return UpdateObject(exp)
+		Build())
 }
