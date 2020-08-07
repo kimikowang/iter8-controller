@@ -42,7 +42,6 @@ import (
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/adapter"
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/routing"
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/routing/router"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/targets"
 	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
 	"github.com/iter8-tools/iter8-controller/pkg/grafana"
 	iter8notifier "github.com/iter8-tools/iter8-controller/pkg/notifier"
@@ -259,8 +258,7 @@ type ReconcileExperiment struct {
 	iter8Adapter       adapter.Interface
 	grafanaConfig      grafana.Interface
 
-	targets *targets.Targets
-	router  router.Interface
+	router router.Interface
 	interState
 }
 

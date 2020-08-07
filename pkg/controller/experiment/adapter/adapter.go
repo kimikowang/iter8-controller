@@ -39,6 +39,8 @@ type Interface interface {
 
 	MarkDeploymentDeleted(name, namespace string) bool
 	MarkServiceDeleted(name, namespace string) bool
+
+	Inspect()
 }
 
 var _ Interface = &Impl{}
@@ -102,7 +104,15 @@ func (c *Impl) RegisterExperiment(ctx context.Context, instance *iter8v1alpha2.E
 	ea := c.experimentAbstractStore[eakey]
 	ctx = context.WithValue(ctx, ActionKey, ea.GetAction())
 
+	c.logger.Info("ExperimentRegistered", "experiemnt", ea)
+	c.Inspect()
 	return ctx, nil
+}
+
+// Inspect prints details of adapter into log
+func (c *Impl) Inspect() {
+	c.logger.Info("iter8Adapter", "deployment2Experiment", c.deployment2Experiment)
+	c.logger.Info("iter8Adapter", "service2Experiment", c.service2Experiment)
 }
 
 // DeploymentToExperiment returns the experiment key given name and namespace of target deployment
@@ -253,7 +263,7 @@ func (c *Impl) checkAndGetServices(instance *iter8v1alpha2.Experiment) ([]string
 
 func (c *Impl) checkAndGetDeployments(instance *iter8v1alpha2.Experiment) ([]string, error) {
 	service := instance.Spec.Service
-	if service.Kind == "Deployment" {
+	if service.Kind == "Deployment" || service.Kind == "" {
 		out := []string{}
 		ns := instance.ServiceNamespace()
 
