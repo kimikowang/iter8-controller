@@ -423,24 +423,30 @@ func (r *ReconcileExperiment) proceed(context context.Context, instance *iter8v1
 
 	// pause experiment
 	if instance.Spec.Pause() {
+		util.Logger(context).Info("processing pause")
 		instance.Spec.ManualOverride = nil
 		if err := r.Update(context, instance); err != nil && !validUpdateErr(err) {
-			log.Error(err, "Fail to update instance")
+			log.Error(err, "fail to update instance")
 			return err
 		}
 		r.markActionPause(context, instance, "")
 		err = fmt.Errorf("phase: %v, action: %s", instance.Status.Phase, instance.Spec.GetAction())
-		return
+		return err
 	}
 
 	// resume experiment
 	if instance.Spec.Resume() {
 		instance.Spec.ManualOverride = nil
 		if err := r.Update(context, instance); err != nil && !validUpdateErr(err) {
-			log.Error(err, "Fail to update instance")
+			log.Error(err, "fail to update instance")
 			return err
 		}
 		r.markActionResume(context, instance, "")
+		return
+	}
+
+	if instance.Status.Phase == iter8v1alpha2.PhasePause {
+		err = fmt.Errorf("experiment paused")
 	}
 
 	return
