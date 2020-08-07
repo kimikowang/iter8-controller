@@ -38,51 +38,51 @@ type Action interface {
 	Resume() bool
 }
 
-var _ Catcher = &Experiment{}
-var _ Action = &Experiment{}
+var _ Catcher = &experiment{}
+var _ Action = &experiment{}
 
 // Experiment includes abstract info for one Experiment
-type Experiment struct {
-	ServiceKeys    []string
-	DeploymentKeys []string
+type experiment struct {
+	serviceKeys    []string
+	deploymentKeys []string
 	targetAction   targetAction
 }
 
 // NewExperiment returns an Experiment instance used in controlelr adapter
-func NewExperiment(services, deployments []string) *Experiment {
-	return &Experiment{
-		ServiceKeys:    services,
-		DeploymentKeys: deployments,
+func newExperiment(services, deployments []string) *experiment {
+	return &experiment{
+		serviceKeys:    services,
+		deploymentKeys: deployments,
 	}
 }
 
 // Refresh indicates whether the controller should allow refresh workflows on the experiment
-func (e *Experiment) Refresh() bool {
+func (e *experiment) Refresh() bool {
 	return e.targetAction == targetActionDeleted
 }
 
 // Resume indicates whether the controller should try to resume the experiment or not
-func (e *Experiment) Resume() bool {
+func (e *experiment) Resume() bool {
 	return e.targetAction == targetActionDetected
 }
 
-func (e *Experiment) clearAction() {
+func (e *experiment) clearAction() {
 	e.targetAction = ""
 }
 
 // MarkTargetDetected captures a detection of a target
-func (e *Experiment) MarkTargetDetected(name string, kind string) {
+func (e *experiment) MarkTargetDetected(name string, kind string) {
 	e.targetAction = targetActionDetected
 }
 
 // MarkTargetDeleted captures a deletion of a target
-func (e *Experiment) MarkTargetDeleted(name string, kind string) {
+func (e *experiment) MarkTargetDeleted(name string, kind string) {
 	e.targetAction = targetActionDeleted
 }
 
 // GetAction returns the action indicator of the experiment
-func (e *Experiment) GetAction() Action {
-	out := &Experiment{}
+func (e *experiment) GetAction() Action {
+	out := &experiment{}
 	*out = *e
 	e.clearAction()
 	return out

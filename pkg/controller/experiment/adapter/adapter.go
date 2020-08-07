@@ -52,7 +52,7 @@ type Impl struct {
 	// the mutext to protect the maps
 	m sync.RWMutex
 	// an ExperimentAbstract store with experimentName.experimentNamespace as key for access
-	experimentAbstractStore map[string]*Experiment
+	experimentAbstractStore map[string]*experiment
 
 	// a lookup map from target to experiment
 	// targetName.targetNamespace -> experimentName.experimentNamespace
@@ -65,7 +65,7 @@ type Impl struct {
 // New returns a new iter8cache implementation
 func New(logger logr.Logger) Interface {
 	return &Impl{
-		experimentAbstractStore: make(map[string]*Experiment),
+		experimentAbstractStore: make(map[string]*experiment),
 		deployment2Experiment:   make(map[string]string),
 		service2Experiment:      make(map[string]string),
 		logger:                  logger,
@@ -89,7 +89,8 @@ func (c *Impl) RegisterExperiment(ctx context.Context, instance *iter8v1alpha2.E
 			return ctx, err
 		}
 
-		c.experimentAbstractStore[eakey] = NewExperiment(serviceKeys, deploymentKeys)
+		c.experimentAbstractStore[eakey] = newExperiment(serviceKeys, deploymentKeys)
+
 		for _, svc := range serviceKeys {
 			c.service2Experiment[svc] = eakey
 		}
@@ -97,8 +98,6 @@ func (c *Impl) RegisterExperiment(ctx context.Context, instance *iter8v1alpha2.E
 		for _, dep := range deploymentKeys {
 			c.deployment2Experiment[dep] = eakey
 		}
-
-		c.experimentAbstractStore[eakey] = NewExperiment(serviceKeys, deploymentKeys)
 	}
 
 	ea := c.experimentAbstractStore[eakey]
@@ -219,11 +218,11 @@ func (c *Impl) RemoveExperiment(instance *iter8v1alpha2.Experiment) {
 		return
 	}
 
-	for _, key := range ea.ServiceKeys {
+	for _, key := range ea.serviceKeys {
 		delete(c.service2Experiment, key)
 	}
 
-	for _, key := range ea.DeploymentKeys {
+	for _, key := range ea.deploymentKeys {
 		delete(c.deployment2Experiment, key)
 	}
 	delete(c.experimentAbstractStore, eakey)
