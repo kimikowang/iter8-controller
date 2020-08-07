@@ -269,16 +269,6 @@ func (b *VirtualServiceBuilder) WithHosts(hosts []string) *VirtualServiceBuilder
 	return b
 }
 
-func (b *VirtualServiceBuilder) WithHTTPMatch(httpMatch []*iter8v1alpha2.HTTPMatchRequest) *VirtualServiceBuilder {
-	if b.Spec.Http == nil || len(b.Spec.Http) == 0 {
-		b.Spec.Http = append(b.Spec.Http, &networkingv1alpha3.HTTPRoute{})
-	}
-	for _, match := range httpMatch {
-		b.Spec.Http[0].Match = append(b.Spec.Http[0].Match, convertMatchToIstio(match))
-	}
-	return b
-}
-
 func (b *VirtualServiceBuilder) WithHostRegistered(host string) *VirtualServiceBuilder {
 	if b.ObjectMeta.GetLabels() == nil {
 		b.ObjectMeta.SetLabels(map[string]string{})
@@ -342,6 +332,13 @@ func (b *HTTPRouteBuilder) WithDestination(d *networkingv1alpha3.HTTPRouteDestin
 
 func (b *HTTPRouteBuilder) ClearRoute() *HTTPRouteBuilder {
 	b.Route = make([]*networkingv1alpha3.HTTPRouteDestination, 0)
+	return b
+}
+
+func (b *HTTPRouteBuilder) WithHTTPMatch(httpMatch []*iter8v1alpha2.HTTPMatchRequest) *HTTPRouteBuilder {
+	for _, match := range httpMatch {
+		b.Match = append(b.Match, convertMatchToIstio(match))
+	}
 	return b
 }
 

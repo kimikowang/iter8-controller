@@ -209,10 +209,12 @@ func (r *Router) UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, bas
 	}
 	vsb = vsb.WithHosts(hosts).WithGateways(gateways)
 
+	rb := NewEmptyHTTPRoute()
 	// inject match clauses
 	trafficControl := instance.Spec.TrafficControl
 	if trafficControl != nil && trafficControl.Match != nil && len(trafficControl.Match.HTTP) > 0 {
-		vsb = vsb.WithHTTPMatch(trafficControl.Match.HTTP)
+		r.logger.Info("MatchClauseExist", "match", trafficControl.Match.HTTP)
+		rb = rb.WithHTTPMatch(trafficControl.Match.HTTP)
 	}
 
 	// inject baseline destination
@@ -224,7 +226,7 @@ func (r *Router) UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, bas
 	})
 
 	// update virtualservice
-	vsb = vsb.WithHTTPRoute(NewEmptyHTTPRoute().WithDestination(baselineDestination).Build())
+	vsb = vsb.WithHTTPRoute(rb.WithDestination(baselineDestination).Build())
 	vs := (*v1alpha3.VirtualService)(nil)
 	if _, ok := vsb.GetLabels()[experimentInit]; ok {
 		vs, err = r.client.NetworkingV1alpha3().
