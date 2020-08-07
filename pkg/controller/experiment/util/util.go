@@ -54,6 +54,9 @@ func GetHost(instance *iter8v1alpha2.Experiment) string {
 	if instance.Spec.Service.Name != "" {
 		return ServiceToFullHostName(instance.Spec.Service.Name, instance.ServiceNamespace())
 	}
+	if len(instance.Spec.Service.Hosts) > 0 {
+		return instance.Spec.Service.Hosts[0].Name
+	}
 
-	return ""
+	return "iter8"
 }

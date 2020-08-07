@@ -176,6 +176,7 @@ func (r *Router) UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, bas
 	if r.rules.isProgressing() || r.rules.isInitializing() {
 		return nil
 	}
+	r.logger.Info("UpdateRouteWithBaseline")
 	service := instance.Spec.Service
 
 	vsb := NewVirtualServiceBuilder(r.rules.virtualService).
