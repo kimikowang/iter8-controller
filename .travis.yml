@@ -15,13 +15,14 @@ _end_to_end_script: &end_to_end_script
     - test/e2e/install-minikube.sh
     - test/e2e/sanity-check.sh
     - test/e2e/install-istio.sh
+    - test/e2e/e2e-local.sh
     - test/e2e/install-iter8.sh
     - test/e2e/e2e-test.sh
 
 jobs:
   include:
     - stage: "unit tests"
-      go_import_path: github.com/iter8-tools/iter8-controller/
+      go_import_path: github.com/iter8-tools/iter8/
       before_install:
         - ./test/scripts/tools.sh
       if: (type = pull_request) AND (head_branch != master) AND (head_branch !~ /^v[0-9]+\.[0-9]+$/)
@@ -36,13 +37,13 @@ jobs:
       <<: *end_to_end_script
     - stage: "build image"
       # only build images for master and release branches + tagged releases
-      if: (type = push) AND (branch = master OR branch =~ /^v[0-9]+\.[0-9]+(\.[0-9]+)*$/)
+      if: (type = push) AND (branch = master OR branch =~ /^v[0-9]+\.[0-9]+(\.[0-9]+)*.*$/)
       script:
         - test/e2e/build-image.sh
     - stage: "release"
       script: skip
       # only do release for tagged releases
-      if: (type = push) AND (branch =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/)
+      if: (type = push) AND (branch =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*$/)
       before_deploy:
         - make ver=${TRAVIS_BRANCH} changelog > release.note
         - tar cvzf iter8-controller.tgz install/helm/iter8-controller/
