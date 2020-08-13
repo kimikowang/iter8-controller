@@ -115,6 +115,9 @@ func overrideAssessment(instance *iter8v1alpha2.Experiment) {
 			// all traffic to winner
 			if assessment.Winner.Winner == assessment.Baseline.ID {
 				assessment.Baseline.Weight = 100
+				for i := range assessment.Candidates {
+					assessment.Candidates[i].Weight = 0
+				}
 			} else {
 				assessment.Baseline.Weight = 0
 				matchfound := false
