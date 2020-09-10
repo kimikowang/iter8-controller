@@ -9,6 +9,7 @@ spec:
     candidates:
       - productpage-v2
       - productpage-v3
+  networking:
     hosts:
       - name: bookinfo.example.com
         gateway: bookinfo-gateway
@@ -29,7 +30,7 @@ spec:
       isReward: true
   duration:
     interval: 20s
-    maxIterations: 20
+    maxIterations: 10
   trafficControl:
     strategy: progressive
     maxIncrement: 10

@@ -143,7 +143,6 @@ func GetRouter(ctx context.Context, instance *iter8v1alpha2.Experiment) router.I
 		logger: util.Logger(ctx),
 	}
 
-	out.logger.Info("GetRouter", "serviceKind", instance.Spec.Service.Kind)
 	switch instance.Spec.Service.Kind {
 	case "Service":
 		out.handler = serviceHandler{}
@@ -206,21 +205,23 @@ func (r *Router) UpdateRouteWithBaseline(instance *iter8v1alpha2.Experiment, bas
 			WithMeshGateway()
 	}
 
-	// inject external hosts
-	mHosts, mGateways := make(map[string]bool), make(map[string]bool)
-	hosts, gateways := make([]string, 0), make([]string, 0)
-	for _, host := range service.Hosts {
-		if _, ok := mHosts[host.Name]; !ok {
-			hosts = append(hosts, host.Name)
-			mHosts[host.Name] = true
-		}
+	if nwk := instance.Spec.Networking; nwk != nil {
+		// inject external hosts
+		mHosts, mGateways := make(map[string]bool), make(map[string]bool)
+		hosts, gateways := make([]string, 0), make([]string, 0)
+		for _, host := range nwk.Hosts {
+			if _, ok := mHosts[host.Name]; !ok {
+				hosts = append(hosts, host.Name)
+				mHosts[host.Name] = true
+			}
 
-		if _, ok := mHosts[host.Gateway]; !ok {
-			gateways = append(gateways, host.Gateway)
-			mGateways[host.Gateway] = true
+			if _, ok := mHosts[host.Gateway]; !ok {
+				gateways = append(gateways, host.Gateway)
+				mGateways[host.Gateway] = true
+			}
 		}
+		vsb = vsb.WithHosts(hosts).WithGateways(gateways)
 	}
-	vsb = vsb.WithHosts(hosts).WithGateways(gateways)
 
 	experimentRoute := NewEmptyHTTPRoute(routeNameExperiment)
 
@@ -399,7 +400,7 @@ func (r *Router) UpdateRouteToStable(instance *iter8v1alpha2.Experiment) (err er
 
 			if route != nil {
 				r.updateRouteFromExperiment(route, instance)
-				route.Name = routeNameBase
+				route.Name = ""
 				vs = NewVirtualServiceBuilder(vs).
 					InitHTTPRoutes().
 					WithHTTPRoute(route).
@@ -434,11 +435,6 @@ func (r *Router) UpdateRouteToStable(instance *iter8v1alpha2.Experiment) (err er
 }
 
 func (r *Router) updateRouteFromExperiment(route *networkingv1alpha3.HTTPRoute, instance *iter8v1alpha2.Experiment) {
-	// er := getExperimentRoute(vs)
-	// if er == nil {
-	// 	r.logger.Info("MissingExperimentRoute", "Fail to update experiment traffic", "")
-	// 	return nil
-	// }
 	rb := NewHTTPRoute(route).ClearRoute()
 	assessment := instance.Status.Assessment
 
@@ -490,12 +486,12 @@ func CandidateSubsetName(idx int) string {
 
 // returns the id of router used by this experiment
 func getRouterID(instance *iter8v1alpha2.Experiment) string {
-	tc := instance.Spec.TrafficControl
-	if tc != nil && tc.RouterID != nil {
-		return *tc.RouterID
+	nwk := instance.Spec.Networking
+	if nwk != nil && nwk.ID != nil {
+		return *nwk.ID
 	}
 
-	host := util.GetHost(instance)
+	host := util.GetDefaultHost(instance)
 	if host == "*" {
 		return wildcard
 	}
