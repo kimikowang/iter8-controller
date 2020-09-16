@@ -401,6 +401,7 @@ func (r *Router) UpdateRouteToStable(instance *iter8v1alpha2.Experiment) (err er
 			if route != nil {
 				r.updateRouteFromExperiment(route, instance)
 				route.Name = ""
+				route.Match = nil
 				vs = NewVirtualServiceBuilder(vs).
 					InitHTTPRoutes().
 					WithHTTPRoute(route).
