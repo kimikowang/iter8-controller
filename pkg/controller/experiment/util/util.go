@@ -18,13 +18,17 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
+	iter8v1alpha2 "github.com/iter8-tools/iter8/pkg/apis/iter8/v1alpha2"
 )
 
 type loggerKeyType string
 
 const (
+	// LoggerKey is the key used to extract logger from context
 	LoggerKey = loggerKeyType("logger")
+
+	// IstioClientKey is the key used to extract istio client from context
+	IstioClientKey = "istioClient"
 )
 
 // Logger gets the logger from the context.
@@ -32,27 +36,24 @@ func Logger(ctx context.Context) logr.Logger {
 	return ctx.Value(LoggerKey).(logr.Logger)
 }
 
-func EqualHost(host1, ns1, host2, ns2 string) bool {
-	if host1 == host2 ||
-		host1 == host2+"."+ns2+".svc.cluster.local" ||
-		host1+"."+ns1+".svc.cluster.local" == host2 {
-		return true
-	}
-	return false
-}
-
+// ServiceToFullHostName returns the full dns name for internal service
 func ServiceToFullHostName(svcName, namespace string) string {
 	return svcName + "." + namespace + ".svc.cluster.local"
 }
 
+// FullExperimentName returns the namespaced name for experiment
 func FullExperimentName(instance *iter8v1alpha2.Experiment) string {
 	return instance.GetName() + "." + instance.GetNamespace()
 }
 
-func GetHost(instance *iter8v1alpha2.Experiment) string {
+// GetDefaultHost returns the default host for experiment
+func GetDefaultHost(instance *iter8v1alpha2.Experiment) string {
 	if instance.Spec.Service.Name != "" {
 		return ServiceToFullHostName(instance.Spec.Service.Name, instance.ServiceNamespace())
 	}
+	if len(instance.Spec.Networking.Hosts) > 0 {
+		return instance.Spec.Networking.Hosts[0].Name
+	}
 
-	return ""
+	return "iter8"
 }

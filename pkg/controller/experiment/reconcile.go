@@ -23,46 +23,62 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/iter8-tools/iter8-controller/pkg/analytics"
-	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/targets"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
+	"github.com/iter8-tools/iter8/pkg/analytics"
+	iter8v1alpha2 "github.com/iter8-tools/iter8/pkg/apis/iter8/v1alpha2"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/targets"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/util"
 )
 
 func (r *ReconcileExperiment) completeExperiment(context context.Context, instance *iter8v1alpha2.Experiment) error {
-	r.iter8Cache.RemoveExperiment(instance)
-	r.targets.Cleanup(context, instance)
-	err := r.router.Cleanup(context, instance)
+	// remove experiment and targets from adapter
+	r.iter8Adapter.RemoveExperiment(instance)
+
+	overrideAssessment(instance)
+	targets.Cleanup(context, instance, r.Client)
+	err := r.router.UpdateRouteToStable(instance)
 	if err != nil {
 		return err
 	}
 
-	msg := completeStatusMessage(context, instance)
-	r.markExperimentCompleted(context, instance, "%s", msg)
+	r.markExperimentCompleted(context, instance, "%s", completeStatusMessage(instance))
 	return nil
 }
 
 // returns hard-coded termination message
-func completeStatusMessage(context context.Context, instance *iter8v1alpha2.Experiment) string {
-	// TODO: might need more detailed situations
-	if experimentAbstract(context) != nil && experimentAbstract(context).Terminate() {
-		return experimentAbstract(context).GetTerminateStatus()
-	} else if instance.Spec.Terminate() {
-		return "Abort"
-	} else if instance.Spec.GetMaxIterations() < *instance.Status.CurrentIteration {
-		return "Last Iteration Was Completed"
+func completeStatusMessage(instance *iter8v1alpha2.Experiment) string {
+	out := ""
+
+	if instance.Status.RoutingRulesReady() {
+		switch instance.Spec.GetOnTermination() {
+		case iter8v1alpha2.OnTerminationToWinner:
+			if instance.Status.IsWinnerFound() {
+				out += "Traffic To Winner"
+				break
+			}
+			fallthrough
+		case iter8v1alpha2.OnTerminationToBaseline:
+			out += "Traffic To Baseline"
+		case iter8v1alpha2.OnTerminationKeepLast:
+			if instance.Spec.Terminate() {
+				out += "Traffic User Specified"
+			} else {
+				out += "Keep Last Traffic"
+			}
+		}
 	}
 
-	return "Error"
+	if instance.Spec.Terminate() {
+		out += " (Abort)"
+	}
+
+	return out
 }
 
 func (r *ReconcileExperiment) checkOrInitRules(context context.Context, instance *iter8v1alpha2.Experiment) error {
-	err := r.router.GetRoutingRules(instance)
+	err := r.router.Fetch(instance)
 	if err != nil {
 		r.markRoutingRulesError(context, instance, "Error in getting routing rules: %s, Experiment Ended.", err.Error())
 		r.completeExperiment(context, instance)
-	} else {
-		r.markRoutingRulesReady(context, instance, "")
 	}
 
 	return err
@@ -71,67 +87,64 @@ func (r *ReconcileExperiment) checkOrInitRules(context context.Context, instance
 // return true if instance status should be updated
 // returns non-nil error if current reconcile request should be terminated right after this function
 func (r *ReconcileExperiment) detectTargets(context context.Context, instance *iter8v1alpha2.Experiment) (bool, error) {
-	if err := r.targets.GetService(context, instance); err != nil {
+	targetsHandler := targets.Init(instance, r.Client)
+
+	if err := targetsHandler.GetService(context); err != nil {
 		if instance.Status.TargetsFound() {
 			r.markTargetsError(context, instance, "Service Deleted")
-			onDeletedTarget(instance, targets.RoleService)
 			return false, err
 		} else {
 			r.markTargetsError(context, instance, "Missing Service")
-			return false, nil
+			return false, err
 		}
 	}
 
-	if err := r.targets.GetBaseline(context, instance); err != nil {
+	if err := targetsHandler.GetBaseline(context); err != nil {
 		if instance.Status.TargetsFound() {
 			r.markTargetsError(context, instance, "Baseline Deleted")
-			onDeletedTarget(instance, targets.RoleBaseline)
 			return false, err
 		} else {
 			r.markTargetsError(context, instance, "Missing Baseline")
-			return false, nil
+			return false, err
 		}
 	} else {
 		// UpdateBaseline will create DestinationRule and VirtualService if needed
-		if err = r.router.UpdateBaseline(context, instance, r.targets); err != nil {
+		if err = r.router.UpdateRouteWithBaseline(instance, targetsHandler.Baseline); err != nil {
 			r.markRoutingRulesError(context, instance, "Fail in updating routing rule: %v", err)
 			return false, err
 		}
 	}
 
-	if err := r.targets.GetCandidates(context, instance); err != nil {
+	if err := targetsHandler.GetCandidates(context); err != nil {
 		if instance.Status.TargetsFound() {
 			r.markTargetsError(context, instance, "Candidate Deleted")
-			onDeletedTarget(instance, targets.RoleCandidate)
 			return false, err
 		} else {
-			r.markTargetsError(context, instance, "Err in getting candidates: %v", err)
-			return false, nil
+			r.markTargetsError(context, instance, "Missing Candidate")
+			return false, err
 		}
 	} else {
 		// Update DestinationRule for candidates
 		// If baseline is also configured (see above), we move set rule to progressing
-		if err = r.router.UpdateCandidates(context, r.targets); err != nil {
+		if err = r.router.UpdateRouteWithCandidates(instance, targetsHandler.Candidates); err != nil {
 			r.markRoutingRulesError(context, instance, "Fail in updating routing rule: %v", err)
 			return false, err
 		}
 	}
 
 	r.markTargetsFound(context, instance, "")
-
+	r.markRoutingRulesReady(context, instance, "")
 	return true, nil
 }
 
 // returns non-nil error if reconcile process should be terminated right after this function
-func (r *ReconcileExperiment) updateIteration(context context.Context, instance *iter8v1alpha2.Experiment) error {
+func (r *ReconcileExperiment) processIteration(context context.Context, instance *iter8v1alpha2.Experiment) error {
 	log := util.Logger(context)
 	trafficUpdated := false
-	trafficSplit := make(map[string]int32)
 	// mark experiment begin
 	if instance.Status.StartTimestamp == nil {
 		startTime := metav1.Now()
 		instance.Status.StartTimestamp = &startTime
-		r.grafanaConfig.UpdateGrafanaURL(instance)
 		r.markStatusUpdate()
 	}
 
@@ -142,10 +155,8 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 		diff := instance.Spec.GetMaxIncrements() * int32(len(instance.Spec.Candidates))
 		if basetraffic-diff >= 0 {
 			instance.Status.Assessment.Baseline.Weight = basetraffic - diff
-			trafficSplit[instance.Spec.Service.Baseline] = instance.Status.Assessment.Baseline.Weight
 			for i := range instance.Status.Assessment.Candidates {
 				instance.Status.Assessment.Candidates[i].Weight += instance.Spec.GetMaxIncrements()
-				trafficSplit[instance.Spec.Service.Candidates[i]] = instance.Status.Assessment.Candidates[i].Weight
 			}
 			trafficUpdated = true
 		}
@@ -186,14 +197,27 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 
 		if abort {
 			instance.Spec.TerminateExperiment()
-			overrideAssessment(instance)
 			log.Info("AbortExperiment", "All candidates fail assessment", "")
 			return nil
 		}
 
-		instance.Status.Assessment.Winner = &response.WinnerAssessment
-		r.markAssessmentUpdate(context, instance, "Winner assessment: %+v", response.WinnerAssessment)
+		// set winner assessment
+		instance.Status.Assessment.Winner = &iter8v1alpha2.WinnerAssessment{
+			WinnerAssessment: &response.WinnerAssessment,
+		}
+		if instance.Status.Assessment.Baseline.ID == response.WinnerAssessment.Winner {
+			instance.Status.Assessment.Winner.Name = &instance.Status.Assessment.Baseline.Name
+		} else {
+			for _, candidate := range instance.Status.Assessment.Candidates {
+				if candidate.ID == response.WinnerAssessment.Winner {
+					instance.Status.Assessment.Winner.Name = &candidate.Name
+					break
+				}
+			}
+		}
+		r.markAssessmentUpdate(context, instance, "Winner assessment: %s", instance.Status.WinnerToString())
 
+		// check traffic split update
 		strategy := instance.Spec.GetStrategy()
 		_, ok := response.TrafficSplitRecommendation[strategy]
 		if !ok {
@@ -201,9 +225,9 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 			r.markAnalyticsServiceError(context, instance, "%v", err)
 			return err
 		}
-		trafficSplit = response.TrafficSplitRecommendation[strategy]
+		trafficSplit := response.TrafficSplitRecommendation[strategy]
 
-		if baselineWeight, ok := trafficSplit[instance.Spec.Baseline]; ok {
+		if baselineWeight, ok := trafficSplit[analytics.GetBaselineID()]; ok {
 			if instance.Status.Assessment.Baseline.Weight != baselineWeight {
 				trafficUpdated = true
 			}
@@ -218,7 +242,7 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 			if candidate.Rollback {
 				trafficUpdated = true
 				instance.Status.Assessment.Candidates[i].Weight = int32(0)
-			} else if weight, ok := trafficSplit[candidate.Name]; ok {
+			} else if weight, ok := trafficSplit[analytics.GetCandidateID(i)]; ok {
 				if candidate.Weight != weight {
 					trafficUpdated = true
 				}
@@ -234,31 +258,18 @@ func (r *ReconcileExperiment) updateIteration(context context.Context, instance 
 	}
 
 	if trafficUpdated {
-		if err := r.router.UpdateTrafficSplit(instance); err != nil {
+		if err := r.router.UpdateRouteWithTrafficUpdate(instance); err != nil {
 			r.markRoutingRulesError(context, instance, "%v", err)
 			return err
 		}
-		r.markAssessmentUpdate(context, instance, "New Traffic: %v", trafficSplit)
+		r.markTrafficUpdate(context, instance, "Traffic: %s", instance.Status.TrafficToString())
 	}
 
-	r.markIterationUpdate(context, instance, "Iteration %d completed", *instance.Status.CurrentIteration)
-	now := metav1.Now()
-	instance.Status.LastUpdateTime = &now
-	*instance.Status.CurrentIteration++
+	r.markIterationUpdate(context, instance, "Iteration %d/%d completed", *instance.Status.CurrentIteration, instance.Spec.GetMaxIterations())
 	return nil
 }
 
-func onDeletedTarget(instance *iter8v1alpha2.Experiment, role targets.Role) {
-	instance.Spec.ManualOverride = &iter8v1alpha2.ManualOverride{
-		Action: iter8v1alpha2.ActionTerminate,
-	}
-	switch role {
-	case targets.RoleBaseline:
-		// Keep traffic status
-	case targets.RoleCandidate, targets.RoleService:
-		// Send all traffic to baseline
-		instance.Spec.ManualOverride.TrafficSplit = map[string]int32{
-			instance.Spec.Service.Baseline: 100,
-		}
-	}
+func (r *ReconcileExperiment) updateIteration(instance *iter8v1alpha2.Experiment) {
+	*instance.Status.CurrentIteration++
+	r.markStatusUpdate()
 }
