@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
+	"github.com/iter8-tools/iter8/pkg/apis/iter8/v1alpha2"
 )
 
 // ExperimentBuilder builds experiment object
@@ -82,6 +82,14 @@ func (b *ExperimentBuilder) WithCriterion(c v1alpha2.Criterion) *ExperimentBuild
 	return b
 }
 
+func (b *ExperimentBuilder) WithRouterID(id string) *ExperimentBuilder {
+	if b.Spec.Networking == nil {
+		b.Spec.Networking = &v1alpha2.Networking{}
+	}
+	b.Spec.Networking.ID = &id
+	return b
+}
+
 func (b *ExperimentBuilder) WithResumeAction() *ExperimentBuilder {
 	b.Spec.ManualOverride = &v1alpha2.ManualOverride{
 		Action: v1alpha2.ActionResume,
@@ -89,8 +97,11 @@ func (b *ExperimentBuilder) WithResumeAction() *ExperimentBuilder {
 	return b
 }
 
-func (b *ExperimentBuilder) WithHostInTargetService(host, gateway string) *ExperimentBuilder {
-	b.Spec.Service.Hosts = []v1alpha2.Host{{
+func (b *ExperimentBuilder) WithExternalHost(host, gateway string) *ExperimentBuilder {
+	if b.Spec.Networking == nil {
+		b.Spec.Networking = &v1alpha2.Networking{}
+	}
+	b.Spec.Networking.Hosts = []v1alpha2.Host{{
 		Name:    host,
 		Gateway: gateway,
 	}}
@@ -142,8 +153,8 @@ func DeleteExperiment(name string, namespace string) Hook {
 }
 
 func ResumeExperiment(exp *v1alpha2.Experiment) Hook {
-	exp = (*ExperimentBuilder)(exp).
+	newexp := exp.DeepCopy()
+	return UpdateObject((*ExperimentBuilder)(newexp).
 		WithResumeAction().
-		Build()
-	return UpdateObject(exp)
+		Build())
 }

@@ -18,11 +18,9 @@ fi
 # Exit on error
 set -e
 
-$DIR/e2e-scenario-0a.sh
-$DIR/e2e-scenario-0b.sh
-$DIR/e2e-scenario-0c.sh
-# $DIR/e2e-scenario-1.sh
-# $DIR/e2e-scenario-2.sh
-# $DIR/e2e-scenario-3.sh
-# $DIR/e2e-scenario-4.sh
-# $DIR/e2e-scenario-5.sh
+$DIR/e2e-canary-scenario-1.sh
+$DIR/e2e-canary-scenario-2.sh
+# later versions do not require prometheus config changes
+if [ "-1" != $(${DIR}/../../hack/semver.sh ${ISTIO_VERSION} 1.7.0) ]; then
+  $DIR/e2e-abn-scenario-1.sh
+fi

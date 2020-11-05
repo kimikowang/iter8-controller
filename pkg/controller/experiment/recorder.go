@@ -22,8 +22,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	iter8v1alpha2 "github.com/iter8-tools/iter8-controller/pkg/apis/iter8/v1alpha2"
-	"github.com/iter8-tools/iter8-controller/pkg/controller/experiment/util"
+	iter8v1alpha2 "github.com/iter8-tools/iter8/pkg/apis/iter8/v1alpha2"
+	"github.com/iter8-tools/iter8/pkg/controller/experiment/util"
 )
 
 func (r *ReconcileExperiment) markTargetsError(context context.Context, instance *iter8v1alpha2.Experiment,
@@ -87,6 +87,16 @@ func (r *ReconcileExperiment) markAssessmentUpdate(context context.Context, inst
 	}
 }
 
+func (r *ReconcileExperiment) markTrafficUpdate(context context.Context, instance *iter8v1alpha2.Experiment,
+	messageFormat string, messageA ...interface{}) {
+	if updated, reason := instance.Status.MarkTrafficUpdate(messageFormat, messageA...); updated {
+		util.Logger(context).Info(reason + ", " + fmt.Sprintf(messageFormat, messageA...))
+		r.eventRecorder.Eventf(instance, corev1.EventTypeNormal, reason, messageFormat, messageA...)
+		r.notificationCenter.Notify(instance, reason, messageFormat, messageA...)
+		r.markStatusUpdate()
+	}
+}
+
 func (r *ReconcileExperiment) markExperimentCompleted(context context.Context, instance *iter8v1alpha2.Experiment,
 	messageFormat string, messageA ...interface{}) {
 	if updated, reason := instance.Status.MarkExperimentCompleted(messageFormat, messageA...); updated {
@@ -95,10 +105,8 @@ func (r *ReconcileExperiment) markExperimentCompleted(context context.Context, i
 		r.notificationCenter.Notify(instance, reason, messageFormat, messageA...)
 		// Clear analysis state
 		instance.Status.AnalysisState.Raw = []byte("{}")
-		// Update grafana url
 		now := metav1.Now()
 		instance.Status.EndTimestamp = &now
-		r.grafanaConfig.UpdateGrafanaURL(instance)
 		r.markStatusUpdate()
 	}
 }

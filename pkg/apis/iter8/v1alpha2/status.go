@@ -15,7 +15,7 @@ package v1alpha2
 import (
 	"fmt"
 
-	"github.com/iter8-tools/iter8-controller/pkg/analytics/api/v1alpha2"
+	"github.com/iter8-tools/iter8/pkg/analytics/api/v1alpha2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -145,9 +145,12 @@ func (spec *ExperimentSpec) effectiveHosts() []string {
 			hosts = append(hosts, host)
 		}
 	}
-	for _, host := range spec.Service.Hosts {
-		hosts = append(hosts, host.Name)
+	if spec.Networking != nil {
+		for _, host := range spec.Networking.Hosts {
+			hosts = append(hosts, host.Name)
+		}
 	}
+
 	return hosts
 }
 
@@ -180,7 +183,8 @@ func (s *ExperimentStatus) MarkMetricsSynced(messageFormat string, messageA ...i
 func (s *ExperimentStatus) MarkMetricsSyncedError(messageFormat string, messageA ...interface{}) (bool, string) {
 	reason := ReasonSyncMetricsError
 	s.Phase = PhasePause
-	*s.Message = composeMessage(reason, messageFormat, messageA...)
+	message := composeMessage(reason, messageFormat, messageA...)
+	s.Message = &message
 	return s.GetCondition(ExperimentConditionMetricsSynced).
 		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...), reason
 }
@@ -188,6 +192,11 @@ func (s *ExperimentStatus) MarkMetricsSyncedError(messageFormat string, messageA
 // TargetsFound returns whether status of ExperimentConditionTargetsProvided is true or not
 func (s *ExperimentStatus) TargetsFound() bool {
 	return s.GetCondition(ExperimentConditionTargetsProvided).Status == corev1.ConditionTrue
+}
+
+// RoutingRulesReady returns whether status of ExperimentConditionRoutingRulesReady is true or not
+func (s *ExperimentStatus) RoutingRulesReady() bool {
+	return s.GetCondition(ExperimentConditionRoutingRulesReady).Status == corev1.ConditionTrue
 }
 
 // MarkTargetsFound sets the condition that the all target have been found
@@ -203,7 +212,8 @@ func (s *ExperimentStatus) MarkTargetsFound(messageFormat string, messageA ...in
 func (s *ExperimentStatus) MarkTargetsError(messageFormat string, messageA ...interface{}) (bool, string) {
 	reason := ReasonTargetsError
 	s.Phase = PhasePause
-	*s.Message = composeMessage(reason, messageFormat, messageA...)
+	message := composeMessage(reason, messageFormat, messageA...)
+	s.Message = &message
 	return s.GetCondition(ExperimentConditionTargetsProvided).
 		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...), reason
 }
@@ -269,6 +279,8 @@ func (s *ExperimentStatus) MarkIterationUpdate(messageFormat string, messageA ..
 	message := composeMessage(reason, messageFormat, messageA...)
 	s.Phase = PhaseProgressing
 	s.Message = &message
+	now := metav1.Now()
+	s.LastUpdateTime = &now
 	return s.GetCondition(ExperimentConditionExperimentCompleted).
 		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...), reason
 }
@@ -276,6 +288,16 @@ func (s *ExperimentStatus) MarkIterationUpdate(messageFormat string, messageA ..
 // MarkAssessmentUpdate sets the condition that assessment for experiment updated
 func (s *ExperimentStatus) MarkAssessmentUpdate(messageFormat string, messageA ...interface{}) (bool, string) {
 	reason := ReasonAssessmentUpdate
+	message := composeMessage(reason, messageFormat, messageA...)
+	s.Phase = PhaseProgressing
+	s.Message = &message
+	return s.GetCondition(ExperimentConditionExperimentCompleted).
+		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...), reason
+}
+
+// MarkTrafficUpdate sets the condition that traffic to targets has beeen changed
+func (s *ExperimentStatus) MarkTrafficUpdate(messageFormat string, messageA ...interface{}) (bool, string) {
+	reason := ReasonTrafficUpdate
 	message := composeMessage(reason, messageFormat, messageA...)
 	s.Phase = PhaseProgressing
 	s.Message = &message
@@ -305,6 +327,54 @@ func (s *ExperimentStatus) MarkExperimentResume(messageFormat string, messageA .
 	s.GetCondition(ExperimentConditionExperimentCompleted).
 		markCondition(corev1.ConditionFalse, reason, messageFormat, messageA...)
 	return true, reason
+}
+
+// IsWinnerFound tells whether winner has been found by analytics
+func (s *ExperimentStatus) IsWinnerFound() bool {
+	return s.Assessment != nil && s.Assessment.Winner != nil &&
+		s.Assessment.Winner.WinnerAssessment != nil && s.Assessment.Winner.WinnerAssessment.WinnerFound
+}
+
+// IsWinnerAssessmentAvailable tells whether winner assessment is presented in status or not
+func (s *ExperimentStatus) IsWinnerAssessmentAvailable() bool {
+	return s.Assessment != nil && s.Assessment.Winner != nil &&
+		s.Assessment.Winner.WinnerAssessment != nil
+}
+
+// WinnerToString outputs winner assessment in human-readable format
+func (s *ExperimentStatus) WinnerToString() string {
+	progress := fmt.Sprintf("[Iteration %d]: ", *s.CurrentIteration)
+	if s.IsWinnerAssessmentAvailable() {
+		name := s.Assessment.Winner.Winner
+		if s.Assessment.Winner.Name != nil {
+			name = *s.Assessment.Winner.Name
+		}
+		if s.IsWinnerFound() {
+			return progress + fmt.Sprintf("Current winner (%s) has winning probability of %f.", name,
+				s.Assessment.Winner.Probability)
+		} else {
+			return progress + fmt.Sprintf("Winner has not been found yet. Current best version (%s) has winning probability of %f.", name,
+				s.Assessment.Winner.Probability)
+		}
+	} else {
+		return progress + "Not available."
+	}
+}
+
+// TrafficToString outputs current traffic in human-readable format
+func (s *ExperimentStatus) TrafficToString() string {
+	out := ""
+
+	assessment := s.Assessment
+	// Baseline
+	out += fmt.Sprintf("%s: %d", assessment.Baseline.Name, assessment.Baseline.Weight)
+
+	// Candidates
+	for _, candidate := range assessment.Candidates {
+		out += fmt.Sprintf(", %s: %d", candidate.Name, candidate.Weight)
+	}
+
+	return "[" + out + "]"
 }
 
 func composeMessage(reason, messageFormat string, messageA ...interface{}) string {
