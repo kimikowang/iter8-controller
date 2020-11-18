@@ -94,7 +94,7 @@ func (r *ReconcileExperiment) detectTargets(context context.Context, instance *i
 			r.markTargetsError(context, instance, "Service Deleted")
 			return false, err
 		} else {
-			r.markTargetsError(context, instance, "Missing Service")
+			r.markTargetsError(context, instance, "Service Not Ready")
 			return false, err
 		}
 	}
@@ -104,7 +104,7 @@ func (r *ReconcileExperiment) detectTargets(context context.Context, instance *i
 			r.markTargetsError(context, instance, "Baseline Deleted")
 			return false, err
 		} else {
-			r.markTargetsError(context, instance, "Missing Baseline")
+			r.markTargetsError(context, instance, "Baseline Not Ready")
 			return false, err
 		}
 	} else {
@@ -120,7 +120,7 @@ func (r *ReconcileExperiment) detectTargets(context context.Context, instance *i
 			r.markTargetsError(context, instance, "Candidate Deleted")
 			return false, err
 		} else {
-			r.markTargetsError(context, instance, "Missing Candidate")
+			r.markTargetsError(context, instance, "Candidate Not Ready")
 			return false, err
 		}
 	} else {
